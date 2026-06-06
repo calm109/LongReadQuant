@@ -102,7 +102,7 @@ python isoform_quantification/main.py quantify \
     -gtf annotation.gtf \
     -lrsam LR.sam \
     --bulk_mode \
-    -t 12 \
+    -t 64 \
     -o output/bulk
 ```
 
