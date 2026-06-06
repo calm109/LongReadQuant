@@ -307,18 +307,18 @@ def parse_arguments():
                        help="SAM tag for UMI when not in read name (default: UB)")
     sc_EM.add_argument('--umi_dedup_hamming',type=int,default=0,
                        help="Hamming distance for UMI deduplication (0=exact match, 1=1-mismatch; default: 0)")
-    sp_EM = parser_EM.add_argument_group('spatial transcriptomics mode arguments')
-    sp_EM.add_argument('--st_mode', action='store_true', default=False,
+    st_EM = parser_EM.add_argument_group('spatial transcriptomics mode arguments')
+    st_EM.add_argument('--st_mode', action='store_true', default=False,
                        help="Enable spatial transcriptomics mode: extract spot barcodes/UMIs and output "
                             "a spot × isoform count matrix. Use --barcode_in_readname / --no_barcode_in_readname "
                             "to control barcode extraction (same as single-cell mode).")
-    sp_EM.add_argument('--barcode_whitelist', type=str, default=None,
+    st_EM.add_argument('--barcode_whitelist', type=str, default=None,
                        help="Path to spatial barcode whitelist file (one barcode per line). "
                             "Only barcodes present in this list are retained in the output. "
                             "For Visium, use the tissue barcode list; for Visium HD use the filtered "
                             "tissue positions barcodes. Barcodes not in the whitelist are discarded "
                             "before quantification.")
-    sp_EM.add_argument('--tissue_positions', type=str, default=None,
+    st_EM.add_argument('--tissue_positions', type=str, default=None,
                        help="Path to tissue_positions.csv (Visium format: columns barcode, in_tissue, "
                             "array_row, array_col, pxl_row_in_fullres, pxl_col_in_fullres; with or without "
                             "header). When provided, spatial coordinates are appended as leading columns to "
