@@ -10,7 +10,6 @@ LongReadQuant is a long-read RNA-seq isoform quantification tool that supports b
 - [Quick Start](#quick-start)
 - [Subcommand: `quantify`](#subcommand-quantify)
 - [Subcommand: `cal_TE`](#subcommand-cal_te)
-- [Subcommand: `cal_K_value`](#subcommand-cal_k_value)
 - [Running Modes](#running-modes)
 - [Output Files](#output-files)
 
@@ -22,8 +21,7 @@ LongReadQuant is a long-read RNA-seq isoform quantification tool that supports b
 - **EM-based isoform quantification**: community-based parallel EM on gene-level bipartite graphs
 - **UMI deduplication**: exact-match or Hamming-distance-based UMI collapsing for SC/ST modes
 - **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and per-spot data
-- **Identifiability analysis**: computes condition numbers and identifiability indicators via `cal_K_value`
-
+![miniQuant Overview](miniQuant-multi.png)
 ---
 
 ## Installation
@@ -170,19 +168,17 @@ python main.py quantify -gtf <GTF> -o <OUTPUT> [options]
 | `-gtf` / `--gtf_annotation_path` | Path to transcript GTF annotation file |
 | `-o` / `--output_path` | Output directory |
 
-### Input data (at least one required)
+### Input data (required)
 
 | Argument | Description |
 |---|---|
 | `-lrsam` / `--long_read_sam_path` | Path to long-read SAM file (genome-aligned) |
-| `-srsam` / `--short_read_sam_path` | Path to short-read SAM file (transcriptome-aligned) |
 
 ### General optional arguments
 
 | Argument | Default | Description |
 |---|---|---|
 | `-t` / `--threads` | `1` | Number of parallel worker processes |
-| `--alpha` | `adaptive` | LR/SR balance parameter (0.0 = SR-only, 1.0 = LR-only, 0.5 = equal hybrid, `adaptive` = auto-estimated) |
 | `--EM_SR_num_iters` | `200` | Maximum EM iterations |
 | `--isoform_start_end_site_tolerance` | `20` | Tolerance (bp) for matching LR read start/end to isoform boundaries |
 | `--junction_site_tolerance` | `5` | Tolerance (bp) for matching splice junction sites |
@@ -254,35 +250,13 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 
 ---
 
-## Subcommand: `cal_K_value`
-
-Computes annotation-structure-based identifiability indicators (condition numbers, singular values) for each gene, without requiring EM results.
-
-```
-python main.py cal_K_value -gtf <GTF> -o <OUTPUT> [options]
-```
-
-| Argument | Default | Description |
-|---|---|---|
-| `-gtf` | required | Path to GTF annotation file |
-| `-o` | required | Output directory |
-| `-lrsam` | `None` | Long-read SAM file (builds data-driven LR A matrix) |
-| `-srsam` | `None` | Short-read SAM file (builds data-driven SR A matrix) |
-| `-t` | `1` | Number of threads |
-| `--normalize_lr_A` | `True` | Column-normalize LR design matrix A |
-| `--normalize_sr_A` | `True` | Column-normalize SR design matrix A |
-| `--add_full_length_region` | `all` | Whether to keep zero-read-count regions in LR matrix A: `all`, `nonfullrank`, `none` |
-| `--output_matrix_info` | `False` | Output per-gene A matrices to `matrix_info/` |
-
----
-
 ## Running Modes
 
 ### Bulk mode
 
 Standard transcript-level quantification. Each long read is probabilistically assigned to isoforms using the EM algorithm. No barcode/UMI processing.
 
-- Input: genome-aligned SAM (`-lrsam`) and/or transcriptome-aligned SAM (`-srsam`)
+- Input: genome-aligned long-read SAM (`-lrsam`)
 - Output: `Isoform_abundance.out` (CPM + expected read counts per isoform)
 
 ### Single-cell mode
@@ -311,9 +285,8 @@ Identical to single-cell mode but uses spot barcodes. Additional options:
 
 | File | Description |
 |---|---|
-| `Isoform_abundance.out` | Main result: isoform CPM and expected read counts per isoform |
-| `LR_EM_expression.out` | LR-derived per-isoform CPM and EM theta per gene community |
-| `SR_EM_expression.out` | SR-derived per-isoform TPM (length-normalized) and EM theta |
+| `Isoform_abundance.out` | Main result: isoform CPM and estimated LR read counts per isoform |
+| `LR_EM_expression.out` | Per-isoform CPM and EM theta per gene community |
 | `EM_iterations.tsv` | EM convergence trace (theta per isoform per iteration) |
 
 **`Isoform_abundance.out` columns**:
@@ -322,12 +295,10 @@ Identical to single-cell mode but uses spot barcodes. Additional options:
 |---|---|
 | `Isoform` | Isoform transcript ID |
 | `Gene` | Gene ID |
-| `Effective length` | Transcript effective length (bp) |
-| `TPM` | Transcripts per million (SR length-normalized) |
-| `num_expected_SRs` | Estimated SR read count |
 | `num_expected_LRs` | Estimated LR read count |
+| `CPM` | Counts per million (not length-normalized; each LR read represents one complete transcript molecule) |
 
-> Note: `LR_EM_expression.out` reports `CPM` (not length-normalized) because each LR read represents one complete transcript molecule.
+> CPM is used instead of TPM for long-read data because LR reads are full-length — transcript length does not introduce sequencing bias.
 
 ---
 
@@ -388,17 +359,6 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 | `first_exon_TE_proportion` | TE proportion in first exon (%) |
 | `total_TE_proportion` | TE proportion across full transcript (%) |
 | `transcript_TPM` | Transcript expression (TPM from bulk quant, if provided) |
-
----
-
-### `cal_K_value` output
-
-| File | Description |
-|---|---|
-| `kvalues_gene.out` | Per-gene condition numbers and A matrix dimensions |
-| `kvalues_isoform.out` | Per-isoform attributes (length, exon count, gene membership) |
-| `SR_singular_values.out` | Per-gene singular values of the SR design matrix A |
-| `LR_singular_values.out` | Per-gene singular values of the LR design matrix A |
 
 ---
 
