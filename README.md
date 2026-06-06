@@ -27,7 +27,7 @@ LongReadQuant is a long-read RNA-seq isoform quantification tool that supports b
 ## Installation
 
 ```bash
-git clone <repo-url>
+git clone https://github.com/calm109/LongReadQuant.git
 cd LongReadQuant
 conda env create -f environment.yml
 conda activate LongReadQuant
