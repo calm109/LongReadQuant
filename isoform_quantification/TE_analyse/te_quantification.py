@@ -6,7 +6,7 @@ Per-spot / per-cell TE quantification for miniQuant spatial / single-cell data.
 After running  cal_TE --skip-quantification  (which produces
 transcript_quantification_with_TE.tsv for every transcript in the GTF),
 this module merges the TE annotation with the spot × isoform UMI count
-matrix from a previous  quantify --sp_mode  (or  --sc_mode) run to
+matrix from a previous  quantify --st_mode  (or  --sc_mode) run to
 compute per-spot TE metrics.
 
 Entry point
@@ -22,7 +22,7 @@ Inputs
       Directory that contains the isoform-level MEX output from a previous
       miniQuant spatial / SC run.  The function searches for barcodes.tsv,
       features.tsv, and matrix.mtx in the following sub-paths (in order):
-        <quant_dir>/SP_output/isoform/
+        <quant_dir>/ST_output/isoform/
         <quant_dir>/SC_output/isoform/
         <quant_dir>/isoform/
         <quant_dir>/            (direct path)
@@ -90,7 +90,7 @@ def _find_isoform_mex_dir(quant_dir: str) -> str:
     Tries several common sub-paths produced by miniQuant spatial/SC mode.
     """
     candidates = [
-        os.path.join(quant_dir, "SP_output", "isoform"),
+        os.path.join(quant_dir, "ST_output", "isoform"),
         os.path.join(quant_dir, "SC_output", "isoform"),
         os.path.join(quant_dir, "isoform"),
         quant_dir,
@@ -476,7 +476,7 @@ def run_sc_te_analysis(
         Path to  transcript_quantification_with_TE.tsv  from a cal_TE run.
     quant_dir : str
         Directory containing the isoform-level MEX output from a prior
-        miniQuant quantify --sp_mode (or --sc_mode) run.
+        LongReadQuant quantify --st_mode (or --sc_mode) run.
     output_dir : str
         Output directory for per-spot TE metric files.
     percent_threshold : float
