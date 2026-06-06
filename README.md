@@ -1,6 +1,6 @@
-# miniQuant — Long-Read RNA Isoform Quantification
+# LongReadQuant — Long-Read RNA Isoform Quantification
 
-miniQuant is a long-read RNA-seq isoform quantification tool that supports bulk, single-cell (SC), and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments, with optional short-read integration. It also provides transposable element (TE) quantification at the bulk, per-cell, and per-spot level.
+LongReadQuant is a long-read RNA-seq isoform quantification tool that supports bulk, single-cell (SC), and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments, with optional short-read integration. It also provides transposable element (TE) quantification at the bulk, per-cell, and per-spot level.
 
 ## Table of Contents
 
@@ -30,9 +30,9 @@ miniQuant is a long-read RNA-seq isoform quantification tool that supports bulk,
 
 ```bash
 git clone <repo-url>
-cd miniQuant_Sp
+cd LongReadQuant
 conda env create -f environment.yml
-conda activate miniQuant
+conda activate LongReadQuant
 ```
 
 ### Additional dependencies for SC / ST modes
@@ -411,7 +411,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 #SBATCH --cpus-per-task=12 --mem=64G
 
 source ~/miniforge3/etc/profile.d/conda.sh
-conda activate miniQuant
+conda activate LongReadQuant
 
 python isoform_quantification/main.py quantify \
     -gtf /path/to/annotation.gtf \
