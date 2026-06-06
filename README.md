@@ -118,7 +118,7 @@ python isoform_quantification/main.py quantify \
     --sc_mode \
     --no_barcode_in_readname \
     --cb_tag CB --umi_tag UB \
-    -t 72 \
+    -t 64 \
     -o output/sc
 
 # Step 5: TE quantification
