@@ -21,7 +21,7 @@ LongReadQuant is a long-read RNA-seq isoform quantification tool that supports b
 - **EM-based isoform quantification**: community-based parallel EM on gene-level bipartite graphs
 - **UMI deduplication**: exact-match or Hamming-distance-based UMI collapsing for SC/ST modes
 - **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and per-spot data
-![miniQuant Overview](LongReadQuant.png)
+![miniQuant Overview](miniQuant-multi.png)
 ---
 
 ## Installation
@@ -138,7 +138,7 @@ python isoform_quantification/main.py cal_TE \
 python isoform_quantification/main.py quantify \
     -gtf annotation.gtf \
     -lrsam LR_dedup.sam \
-    --sp_mode \
+    --st_mode \
     --no_barcode_in_readname \
     --barcode_whitelist tissue_barcodes.txt \
     --tissue_positions tissue_positions.csv \
@@ -149,7 +149,7 @@ python isoform_quantification/main.py quantify \
 python isoform_quantification/main.py cal_TE \
     -gtf annotation.gtf \
     -te_gtf TE_annotation.gtf \
-    --sp_quant output/st \
+    --st_quant output/st \
     -o output/st/te
 ```
 
@@ -190,7 +190,7 @@ python main.py quantify -gtf <GTF> -o <OUTPUT> [options]
 |---|---|
 | `--bulk_mode` | Standard bulk transcript quantification |
 | `--sc_mode` | Single-cell mode: extracts CB/UMI per read and outputs a cell × isoform count matrix |
-| `--sp_mode` | Spatial transcriptomics mode: extracts spot barcodes and outputs a spot × isoform count matrix |
+| `--st_mode` | Spatial transcriptomics mode: extracts spot barcodes and outputs a spot × isoform count matrix |
 
 ### Single-cell mode arguments
 
@@ -244,7 +244,7 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 |---|---|
 | `--bulk_quant` | Path to bulk quantification TSV (e.g. `Isoform_abundance.out`); triggers bulk TE expression computation |
 | `--sc_quant` | Path to SC_output directory from a prior `quantify --sc_mode` run; triggers per-cell TE metrics |
-| `--sp_quant` | Path to SP_output directory from a prior `quantify --sp_mode` run; triggers per-spot TE metrics |
+| `--st_quant` | Path to ST_output directory from a prior `quantify --st_mode` run; triggers per-spot TE metrics |
 | `--percent_threshold` | Minimum TE-overlap proportion (overlap / TE_length) to associate a transcript with a TE [default: `0.5`] |
 | `--output_loci` | Also output a spot/cell × individual TE locus matrix (may be large) |
 
@@ -330,9 +330,9 @@ CPM is used (not TPM) because UMI counts are not length-biased — each UMI repr
 
 ---
 
-### `quantify --sp_mode` → `SP_output/`
+### `quantify --st_mode` → `ST_output/`
 
-Same structure as `SC_output/` but under `SP_output/`. Spot barcodes replace cell barcodes.
+Same structure as `SC_output/` but under `ST_output/`. Spot barcodes replace cell barcodes.
 
 If `--tissue_positions` is provided, spatial coordinates are appended to the output for direct import into Squidpy / SpatialDE.
 
@@ -345,7 +345,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 | `transcript_TE_annotation.tsv` | always | Per-transcript TE overlap annotation table |
 | `Bulk_TE_output/` | `--bulk_quant` provided | TE expression at locus / subfamily / family / class level |
 | `SC_TE_output/` | `--sc_quant` provided | Per-cell TE count matrix (cell × TE class/family/locus) |
-| `ST_TE_output/` | `--sp_quant` provided | Per-spot TE count matrix (spot × TE class/family/locus) |
+| `ST_TE_output/` | `--st_quant` provided | Per-spot TE count matrix (spot × TE class/family/locus) |
 
 **TE annotation columns** (in `transcript_TE_annotation.tsv`):
 
@@ -430,7 +430,7 @@ THREADS=64; OUT_DIR="output/st"
 # Step 4: isoform quantification
 python isoform_quantification/main.py quantify \
     -gtf "$GTF" -lrsam LR.sam \
-    --sp_mode --no_barcode_in_readname \
+    --st_mode --no_barcode_in_readname \
     --barcode_whitelist tissue_barcodes.txt \
     --tissue_positions tissue_positions.csv \
     -t $THREADS -o "$OUT_DIR"
@@ -438,6 +438,6 @@ python isoform_quantification/main.py quantify \
 # Step 5: TE quantification
 python isoform_quantification/main.py cal_TE \
     -gtf "$GTF" -te_gtf "$TE_GTF" \
-    --sp_quant "$OUT_DIR" \
+    --st_quant "$OUT_DIR" \
     -o "$OUT_DIR/te"
 ```
