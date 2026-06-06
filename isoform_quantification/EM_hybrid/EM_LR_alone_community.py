@@ -157,7 +157,7 @@ def EM_manager(isoform_gene_dict,isoform_index_dict,eff_len_arr,output_df,output
     num_LRs = construct_community(isoform_gene_dict,isoform_index_dict,output_path,threads)
     duration = (time.time() - st)
     print(f'[INFO] Done in {duration} seconds!')
-    if config.sc_mode or config.sp_mode:
+    if config.sc_mode or config.st_mode:
         return
     print('[INFO] Running EM on gene communities...')
     st = time.time()
