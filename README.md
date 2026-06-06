@@ -102,7 +102,7 @@ python isoform_quantification/main.py quantify \
     -gtf annotation.gtf \
     -lrsam LR.sam \
     --bulk_mode \
-    -t 64 \
+    -t 12 \
     -o output/bulk
 ```
 
@@ -118,7 +118,7 @@ python isoform_quantification/main.py quantify \
     --sc_mode \
     --no_barcode_in_readname \
     --cb_tag CB --umi_tag UB \
-    -t 64 \
+    -t 72 \
     -o output/sc
 
 # Step 5: TE quantification
@@ -373,12 +373,24 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 source ~/miniforge3/etc/profile.d/conda.sh
 conda activate LongReadQuant
 
+GTF="/path/to/annotation.gtf"
+TE_GTF="/path/to/TE_annotation.gtf"
+OUT_DIR="output/bulk"
+
+# Step 1: isoform quantification
 python isoform_quantification/main.py quantify \
-    -gtf /path/to/annotation.gtf \
+    -gtf "$GTF" \
     -lrsam /path/to/LR.sam \
     --bulk_mode \
     -t $SLURM_CPUS_PER_TASK \
-    -o output/bulk
+    -o "$OUT_DIR"
+
+# Step 2: TE quantification
+python isoform_quantification/main.py cal_TE \
+    -gtf "$GTF" \
+    -te_gtf "$TE_GTF" \
+    --bulk_quant "$OUT_DIR/Isoform_abundance.out" \
+    -o "$OUT_DIR/te"
 ```
 
 ### Single-cell pipeline (ONT, 10x 3' v3)
