@@ -272,7 +272,7 @@ def EM_hybrid(ref_file_path,short_read_alignment_file_path,long_read_alignment_f
     if short_read_alignment_file_path is None:
         EM_algo_LR_alone(isoform_len_dict,isoform_gene_dict,output_path,threads,EM_choice)
         # SC post-processing: per-gene per-cell EM (must run before temp cleanup)
-        if config.sp_mode:
+        if config.st_mode:
             run_sc_em_quantification(
                 output_path=output_path,
                 isoform_gene_dict=isoform_gene_dict,
@@ -282,7 +282,7 @@ def EM_hybrid(ref_file_path,short_read_alignment_file_path,long_read_alignment_f
                 threads=config.threads,
                 barcode_whitelist_path=config.barcode_whitelist_path,
                 tissue_positions_path=config.tissue_positions_path,
-                output_dir_name='SP_output',
+                output_dir_name='ST_output',
                 barcode_label='spot_barcode',
             )
         elif config.sc_mode:

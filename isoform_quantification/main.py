@@ -44,13 +44,13 @@ def _run_cal_te(args):
     )
 
     # --- Optional spatial TE analysis ---
-    if args.sp_quant is not None:
+    if args.st_quant is not None:
         from TE_analyse.te_quantification import run_sc_te_analysis
 
         st_te_output_dir = os.path.join(args.output_path, "ST_TE_output")
         run_sc_te_analysis(
             te_table_path=te_table_path,
-            quant_dir=args.sp_quant,
+            quant_dir=args.st_quant,
             output_dir=st_te_output_dir,
             percent_threshold=args.percent_threshold,
             output_loci=args.output_loci,
@@ -188,10 +188,10 @@ def parse_arguments():
                                  'from miniQuant quantify or isoQuant). '
                                  'If provided, TE expression is computed at locus / subfamily / '
                                  'family / class level and written to <output_path>/Bulk_TE_output/.')
-    opt_te_cal.add_argument('--sp_quant', type=str, default=None,
+    opt_te_cal.add_argument('--st_quant', type=str, default=None,
                             help='Path to directory containing the isoform MEX output '
-                                 'from a prior miniQuant quantify --sp_mode run '
-                                 '(e.g. /path/to/SP_output). '
+                                 'from a prior LongReadQuant quantify --st_mode run '
+                                 '(e.g. /path/to/ST_output). '
                                  'If provided, per-spot TE metrics are computed '
                                  'and written to <output_path>/ST_TE_output/.')
     opt_te_cal.add_argument('--sc_quant', type=str, default=None,
@@ -308,7 +308,7 @@ def parse_arguments():
     sc_EM.add_argument('--umi_dedup_hamming',type=int,default=0,
                        help="Hamming distance for UMI deduplication (0=exact match, 1=1-mismatch; default: 0)")
     sp_EM = parser_EM.add_argument_group('spatial transcriptomics mode arguments')
-    sp_EM.add_argument('--sp_mode', action='store_true', default=False,
+    sp_EM.add_argument('--st_mode', action='store_true', default=False,
                        help="Enable spatial transcriptomics mode: extract spot barcodes/UMIs and output "
                             "a spot × isoform count matrix. Use --barcode_in_readname / --no_barcode_in_readname "
                             "to control barcode extraction (same as single-cell mode).")
@@ -424,13 +424,13 @@ def parse_arguments():
         config.umi_tag = args.umi_tag
         config.umi_dedup_hamming = args.umi_dedup_hamming
         # ST mode config
-        config.sp_mode = args.sp_mode
+        config.st_mode = args.st_mode
         config.barcode_whitelist_path = args.barcode_whitelist
         config.tissue_positions_path = args.tissue_positions
-        active_modes = sum([config.bulk_mode, config.sc_mode, config.sp_mode])
+        active_modes = sum([config.bulk_mode, config.sc_mode, config.st_mode])
         if active_modes > 1:
-            raise ValueError('--bulk_mode, --sc_mode and --sp_mode are mutually exclusive.')
-        if config.sp_mode:
+            raise ValueError('--bulk_mode, --sc_mode and --st_mode are mutually exclusive.')
+        if config.st_mode:
             # Spatial mode reuses the barcode extraction path of SC mode
             config.sc_mode = True
         if args.pretrained_model_path in ['cDNA-ONT','dRNA-ONT','cDNA-PacBio']:

@@ -43,6 +43,6 @@ umi_tag = 'UB'               # SAM tag for UMI (used when barcode_in_readname=Fa
 umi_dedup_hamming = 0        # hamming distance for UMI deduplication (0 = exact match)
 
 # Spatial transcriptomics mode
-sp_mode = False
+st_mode = False
 barcode_whitelist_path = None  # path to spatial barcode whitelist file (one barcode per line)
 tissue_positions_path = None   # path to tissue_positions.csv (Visium format)

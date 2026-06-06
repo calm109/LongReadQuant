@@ -6,7 +6,7 @@ miniQuant's community-level EM framework.
 
 Entry point: run_sc_em_quantification()
   - SC mode  (output_dir_name='SC_output', barcode_label='cell_barcode')
-  - ST mode  (output_dir_name='SP_output', barcode_label='spot_barcode')
+  - ST mode  (output_dir_name='ST_output', barcode_label='spot_barcode')
     Additional ST parameters: barcode_whitelist_path, tissue_positions_path
 
 EM mode: per-unit EM
@@ -566,7 +566,7 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
     threads               : int   — parallel worker processes
     barcode_whitelist_path: str   — path to whitelist file (one barcode per line); ST mode
     tissue_positions_path : str   — path to tissue_positions.csv (Visium format); ST mode
-    output_dir_name       : str   — output subdirectory name ('SC_output' or 'SP_output')
+    output_dir_name       : str   — output subdirectory name ('SC_output' or 'ST_output')
     barcode_label         : str   — index column label ('cell_barcode' or 'spot_barcode')
     """
     is_spatial = (barcode_label == 'spot_barcode')
@@ -627,7 +627,7 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
             cb_umi_map.update(pickle.load(f))
 
     if not cb_umi_map:
-        flag = '--sp_mode' if is_spatial else '--sc_mode'
+        flag = '--st_mode' if is_spatial else '--sc_mode'
         print(f'[{tag}] No CB/UMI data found. Did you run with {flag}? Aborting.',
               flush=True)
         return
