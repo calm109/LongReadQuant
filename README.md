@@ -271,12 +271,6 @@ Barcode source (choose one):
 - Flexiplex output: barcodes embedded in read name → use `--barcode_in_readname` (default)
 - SAM tags (CB/UB): e.g. from STARsolo → use `--no_barcode_in_readname --cb_tag CB --umi_tag UB`
 
-### Spatial transcriptomics mode
-
-Identical to single-cell mode but uses spot barcodes. Additional options:
-- `--barcode_whitelist`: restrict to tissue-covered spots
-- `--tissue_positions`: attach spatial coordinates (array_row, array_col, pixel coordinates) to output
-
 ---
 
 ## Output Files
