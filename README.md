@@ -358,7 +358,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 ## Full Pipeline Examples
 
-### Bulk pipeline (SLURM)
+### Bulk pipeline
 
 ```bash
 #!/bin/bash
