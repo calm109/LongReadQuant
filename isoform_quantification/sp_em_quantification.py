@@ -354,6 +354,9 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
 
     barcodes_content = '\n'.join(all_barcodes) + '\n'
 
+    is_spatial   = (barcode_label == 'spot_barcode')
+    software_ver = 'LongReadQuant-ST' if is_spatial else 'LongReadQuant-SC'
+
     # ------------------------------------------------------------------
     # isoform/ : barcodes.tsv, features.tsv, matrix.mtx, cpm_matrix.mtx
     # ------------------------------------------------------------------
@@ -368,7 +371,7 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     mtx_csc = count_matrix.T.tocsc()
     with open(os.path.join(iso_dir, 'matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate integer general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write(f'%metadata_json: {{"software_version": "{software_ver}"}}\n')
         f.write(f'{n_isoforms} {n_cells} {mtx_csc.nnz}\n')
         cx = mtx_csc.tocoo()
         for r, c, v in zip(cx.row, cx.col, cx.data):
@@ -397,7 +400,7 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     )
     with open(os.path.join(iso_dir, 'cpm_matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate real general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write(f'%metadata_json: {{"software_version": "{software_ver}"}}\n')
         f.write(f'{n_isoforms} {n_cells} {cpm_matrix_coo.nnz}\n')
         for r, c, v in zip(cpm_matrix_coo.row,
                            cpm_matrix_coo.col,
@@ -430,7 +433,7 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
 
     with open(os.path.join(gene_dir, 'matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate integer general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write(f'%metadata_json: {{"software_version": "{software_ver}"}}\n')
         f.write(f'{n_genes} {n_cells} {gene_count_matrix_T.nnz}\n')
         for r, c, v in zip(gene_count_matrix_T.row,
                            gene_count_matrix_T.col,
@@ -444,7 +447,7 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
 
     with open(os.path.join(gene_dir, 'cpm_matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate real general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write(f'%metadata_json: {{"software_version": "{software_ver}"}}\n')
         f.write(f'{n_genes} {n_cells} {gene_cpm_coo.nnz}\n')
         for r, c, v in zip(gene_cpm_coo.row,
                            gene_cpm_coo.col,
@@ -458,11 +461,9 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     n_nonzero_iso   = int((count_matrix.sum(axis=0) > 0).sum())
     total_counts    = int(count_matrix.sum())
 
-    is_spatial   = (barcode_label == 'spot_barcode')
-    tag          = 'ST-EM' if is_spatial else 'SC-EM'
-    unit         = 'spot'  if is_spatial else 'cell'
-    unit_cap     = unit.capitalize()
-    software_ver = 'miniQuant-ST' if is_spatial else 'miniQuant-SC'
+    tag      = 'ST-EM' if is_spatial else 'SC-EM'
+    unit     = 'spot'  if is_spatial else 'cell'
+    unit_cap = unit.capitalize()
 
     common_header = [
         f'Mode                : {"spatial transcriptomics" if is_spatial else "single-cell"}',
