@@ -167,8 +167,8 @@ def parse_alignment_iteration(alignment_file_path, READ_JUNC_MIN_MAP_LEN,map_f,C
                         local_gene_regions_read_count[rname][gname][region_name] += 1
                         local_gene_regions_read_length[rname][gname][region_name].append(mapping['read_length'])
                         buffer_size += 1
-                    # SC mode: record cell barcode and UMI for this read
-                    if config.sc_mode:
+                    # SC/ST mode: record cell barcode and UMI for this read
+                    if config.sc_mode or config.st_mode:
                         read_name = aln_line[0]
                         local_cb_umi_map[read_name] = (aln_line[4], aln_line[5])
             except Exception as e:
@@ -186,7 +186,7 @@ def parse_alignment_iteration(alignment_file_path, READ_JUNC_MIN_MAP_LEN,map_f,C
                     pickle.dump([local_gene_regions_read_count,local_gene_regions_read_length],f)
                 with open(f'{output_path}/temp/machine_learning/LR_feature_dict_{worker_id}_{batch_id}','wb') as f:
                     pickle.dump(LR_feature_dict,f)
-                if config.sc_mode:
+                if config.sc_mode or config.st_mode:
                     with open(f'{output_path}/temp/LR_alignments/cb_umi_{worker_id}_{batch_id}','wb') as f:
                         pickle.dump(local_cb_umi_map,f)
                     local_cb_umi_map = {}
@@ -210,7 +210,7 @@ def parse_alignment_iteration(alignment_file_path, READ_JUNC_MIN_MAP_LEN,map_f,C
                 pickle.dump([local_gene_regions_read_count,local_gene_regions_read_length],f)
             with open(f'{output_path}/temp/machine_learning/LR_feature_dict_{worker_id}_{batch_id}','wb') as f:
                 pickle.dump(LR_feature_dict,f)
-            if config.sc_mode:
+            if config.sc_mode or config.st_mode:
                 with open(f'{output_path}/temp/LR_alignments/cb_umi_{worker_id}_{batch_id}','wb') as f:
                     pickle.dump(local_cb_umi_map,f)
             local_gene_regions_read_count = {}

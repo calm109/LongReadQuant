@@ -430,9 +430,6 @@ def parse_arguments():
         active_modes = sum([config.bulk_mode, config.sc_mode, config.st_mode])
         if active_modes > 1:
             raise ValueError('--bulk_mode, --sc_mode and --st_mode are mutually exclusive.')
-        if config.st_mode:
-            # Spatial mode reuses the barcode extraction path of SC mode
-            config.sc_mode = True
         if args.pretrained_model_path in ['cDNA-ONT','dRNA-ONT','cDNA-PacBio']:
             args.pretrained_model_path = os.path.dirname(os.path.realpath(__file__))+'/pretrained_models/' + args.pretrained_model_path +'/'
         config.pretrained_model_path = args.pretrained_model_path

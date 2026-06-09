@@ -83,7 +83,7 @@ def parse_read_line(line):
     # SC mode: extract cell barcode and UMI
     cell_barcode = None
     umi = None
-    if config.sc_mode:
+    if config.sc_mode or config.st_mode:
         if config.barcode_in_readname:
             # flexiplex appends BARCODE and UMI to read name using barcode_separator
             # e.g. "readname_ACGTACGT_ACGTAC"  →  barcode=ACGTACGT, umi=ACGTAC
