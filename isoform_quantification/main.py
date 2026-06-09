@@ -47,7 +47,7 @@ def _run_cal_te(args):
     if args.st_quant is not None:
         from TE_analyse.te_quantification import run_sc_te_analysis
 
-        st_te_output_dir = os.path.join(args.output_path, "ST_TE_output")
+        st_te_output_dir = os.path.join(args.st_quant, "ST_output", "TE")
         run_sc_te_analysis(
             te_table_path=te_table_path,
             quant_dir=args.st_quant,
@@ -62,7 +62,7 @@ def _run_cal_te(args):
     if args.sc_quant is not None:
         from TE_analyse.te_quantification import run_sc_te_analysis
 
-        sc_te_output_dir = os.path.join(args.output_path, "SC_TE_output")
+        sc_te_output_dir = os.path.join(args.sc_quant, "SC_output", "TE")
         run_sc_te_analysis(
             te_table_path=te_table_path,
             quant_dir=args.sc_quant,
@@ -189,17 +189,17 @@ def parse_arguments():
                                  'If provided, TE expression is computed at locus / subfamily / '
                                  'family / class level and written to <output_path>/Bulk_TE_output/.')
     opt_te_cal.add_argument('--st_quant', type=str, default=None,
-                            help='Path to directory containing the isoform MEX output '
-                                 'from a prior LongReadQuant quantify --st_mode run '
-                                 '(e.g. /path/to/ST_output). '
+                            help='Path to the quantification output directory from a prior '
+                                 'LongReadQuant quantify --st_mode run (i.e. the directory '
+                                 'that contains ST_output/isoform/). '
                                  'If provided, per-spot TE metrics are computed '
-                                 'and written to <output_path>/ST_TE_output/.')
+                                 'and written to <st_quant>/ST_output/TE/.')
     opt_te_cal.add_argument('--sc_quant', type=str, default=None,
-                            help='Path to directory containing the isoform MEX output '
-                                 'from a prior miniQuant quantify --sc_mode run '
-                                 '(e.g. /path/to/SC_output). '
+                            help='Path to the quantification output directory from a prior '
+                                 'LongReadQuant quantify --sc_mode run (i.e. the directory '
+                                 'that contains SC_output/isoform/). '
                                  'If provided, per-cell TE metrics are computed '
-                                 'and written to <output_path>/SC_TE_output/.')
+                                 'and written to <sc_quant>/SC_output/TE/.')
     opt_te_cal.add_argument('--output_loci', action='store_true', default=True,
                             help='Also output spot_te_loci_counts.tsv '
                                  '(spot/cell × individual TE locus matrix; may be very large)')

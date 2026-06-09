@@ -254,11 +254,21 @@ def EM_SR(short_read_alignment_file_path,output_path,threads):
     # print('Done in %.3f s'%(end_time-start_time),flush=True)
     pass
 def EM_hybrid(ref_file_path,short_read_alignment_file_path,long_read_alignment_file_path,output_path,alpha,beta,P,filtering,multi_mapping_filtering='best',SR_quantification_option='Mili',SR_fastq_list=[],reference_genome='',training=False,DL_model='',assign_unique_mapping_option='',threads=1,READ_LEN=0,READ_JUNC_MIN_MAP_LEN=15,EM_choice='LIQA_modified',iter_theta='True'):
+    # When running ST mode, preserve any existing SC_output (from a prior SC run)
+    # so it is not wiped by the rmtree below.
+    _sc_output_backup = None
+    if config.st_mode:
+        _sc_output_dir = os.path.join(output_path, 'SC_output')
+        if os.path.exists(_sc_output_dir):
+            _sc_output_backup = output_path.rstrip('/\\') + '__sc_bkp__'
+            shutil.move(_sc_output_dir, _sc_output_backup)
     try:
         shutil.rmtree(output_path)
     except:
         pass
     Path(output_path).mkdir(parents=True, exist_ok=True)
+    if _sc_output_backup is not None and os.path.exists(_sc_output_backup):
+        shutil.move(_sc_output_backup, os.path.join(output_path, 'SC_output'))
     Path(f'{output_path}/temp/machine_learning/').mkdir(parents=True, exist_ok=True)
     file_stats = os.stat(long_read_alignment_file_path)
     total_bytes = file_stats.st_size
