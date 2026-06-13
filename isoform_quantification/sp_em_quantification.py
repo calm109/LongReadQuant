@@ -30,6 +30,15 @@ import numpy as np
 import pandas as pd
 import scipy.sparse
 
+# ---------------------------------------------------------------------------
+# Module-level globals for fork-inherited zero-copy sharing across workers.
+# Set in the parent process before Pool creation; child processes access via
+# Linux copy-on-write without any disk I/O or pickle serialisation.
+# ---------------------------------------------------------------------------
+_g_row_barcode: dict = {}
+_g_row_umi: dict = {}
+_g_col_to_isoform: dict = {}
+
 
 # ---------------------------------------------------------------------------
 # Spatial helpers
@@ -275,27 +284,38 @@ def _process_community(community_id, lr_rows, iso_cols, sub_cp,
 def _sc_worker(args):
     """Process a subset of communities in a worker process."""
     os.nice(10)
-    (worker_id, community_ids, cond_prob_prefix, temp_dir,
-     LR_labels, isoform_labels, col_to_isoform, max_iter) = args
+    (worker_id, community_ids, cond_prob_prefix, sort_order_path,
+     community_ranges, community_iso_cols, max_iter) = args
 
-    cond_prob_global = _load_csr_memmap(cond_prob_prefix)
+    # Access module-level globals — fork-inherited via COW, zero disk I/O.
+    row_barcode    = _g_row_barcode
+    row_umi        = _g_row_umi
+    col_to_isoform = _g_col_to_isoform
 
-    with open(os.path.join(temp_dir, 'sc_row_barcode.pkl'), 'rb') as f:
-        row_barcode = pickle.load(f)
-    with open(os.path.join(temp_dir, 'sc_row_umi.pkl'), 'rb') as f:
-        row_umi = pickle.load(f)
+    # Load sorted cond_prob and sort_order via mmap — zero-copy, no IPC transfer
+    cond_prob_sorted = _load_csr_memmap(cond_prob_prefix)
+    sort_order = np.load(sort_order_path, mmap_mode='r')
 
     cell_counts = defaultdict(lambda: defaultdict(int))
+    n_communities = len(community_ids)
+    t0 = time.time()
 
-    for community_id in community_ids:
-        lr_rows  = np.where(LR_labels      == community_id)[0]
-        iso_cols = np.where(isoform_labels == community_id)[0]
+    for i, community_id in enumerate(community_ids):
+        if i > 0 and i % max(1, n_communities // 10) == 0:
+            elapsed = time.time() - t0
+            print(f'[SC-EM] Worker {worker_id}: {i}/{n_communities} communities '
+                  f'({elapsed:.0f}s elapsed)', flush=True)
 
-        if len(lr_rows) == 0 or len(iso_cols) == 0:
+        start, end = community_ranges[community_id]
+        iso_cols   = community_iso_cols.get(community_id, np.array([], dtype=np.intp))
+
+        if start == end or len(iso_cols) == 0:
             continue
 
-        sub_cp = np.asarray(
-            cond_prob_global[lr_rows, :][:, iso_cols].todense(),
+        # Slice access on sorted matrix — O(1) vs O(n_reads) fancy indexing
+        lr_rows = np.asarray(sort_order[start:end])
+        sub_cp  = np.asarray(
+            cond_prob_sorted[start:end, :][:, iso_cols].todense(),
             dtype=np.float64
         )
 
@@ -309,6 +329,9 @@ def _sc_worker(args):
             for iso, cnt in iso_cnt.items():
                 cell_counts[barcode][iso] += cnt
 
+    elapsed = time.time() - t0
+    print(f'[SC-EM] Worker {worker_id}: done ({n_communities} communities, '
+          f'{elapsed:.0f}s)', flush=True)
     return {bc: dict(iso_cnt) for bc, iso_cnt in cell_counts.items()}
 
 
@@ -609,9 +632,9 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
     print(f'[{tag}] cond_prob: {n_reads_global} reads × {n_isoforms_global} isoforms',
           flush=True)
 
-    # Save cond_prob as memmap so workers can load without copying
+    # Defer mmap save until after sorting by community (see step 4b below)
     cond_prob_prefix = os.path.join(temp_dir, 'sc_cond_prob')
-    _save_csr_memmap(cond_prob_global, cond_prob_prefix)
+    sort_order_path  = os.path.join(temp_dir, 'sc_sort_order.npy')
 
     # ------------------------------------------------------------------
     # 2. Isoform list — must match column order used in bulk EM
@@ -660,7 +683,8 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
         print(f'[{tag}] Reads filtered (barcode not in whitelist): {n_whitelist_filtered}',
               flush=True)
 
-    # Save to disk for workers to load
+    # Save to disk for potential inspection/restart (workers do NOT load these —
+    # they access row_barcode / row_umi via fork-inherited module globals instead).
     with open(os.path.join(temp_dir, 'sc_row_barcode.pkl'), 'wb') as f:
         pickle.dump(row_barcode, f)
     with open(os.path.join(temp_dir, 'sc_row_umi.pkl'), 'wb') as f:
@@ -681,28 +705,91 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
     print(f'[{tag}] Communities (genes): {len(unique_communities)}', flush=True)
 
     # ------------------------------------------------------------------
+    # 4b. Sort cond_prob rows by community — enables O(1) slice access
+    #     instead of O(n_reads) fancy indexing per community (Proposal 3)
+    # ------------------------------------------------------------------
+    print(f'[{tag}] Sorting reads by community for efficient slice access...', flush=True)
+    sort_order       = np.argsort(LR_labels, kind='stable')
+    LR_labels_sorted = LR_labels[sort_order]
+    _save_csr_memmap(cond_prob_global[sort_order, :], cond_prob_prefix)
+    np.save(sort_order_path, sort_order)
+    del cond_prob_global, sort_order
+
+    # ------------------------------------------------------------------
+    # 4c. Pre-compute community → row range and iso_cols (Proposals 1 & 2)
+    #     Eliminates O(n_reads × n_communities) linear scans in workers.
+    # ------------------------------------------------------------------
+    print(f'[{tag}] Pre-computing community indices...', flush=True)
+
+    # Isoform inverted index: single O(n_isoforms) scan
+    community_iso_cols_map = defaultdict(list)
+    for idx, cid in enumerate(isoform_labels):
+        community_iso_cols_map[int(cid)].append(idx)
+    community_iso_cols_map = {cid: np.array(cols, dtype=np.intp)
+                              for cid, cols in community_iso_cols_map.items()}
+
+    # LR row ranges: O(log n) binary search on sorted labels per community
+    community_ranges = {}
+    for cid in unique_communities:
+        cid_int = int(cid)
+        start = int(np.searchsorted(LR_labels_sorted, cid, side='left'))
+        end   = int(np.searchsorted(LR_labels_sorted, cid, side='right'))
+        community_ranges[cid_int] = (start, end)
+
+    # ------------------------------------------------------------------
     # 5. Distribute communities across workers and run EM
     # ------------------------------------------------------------------
     community_chunks = np.array_split(unique_communities, threads)
 
-    worker_args = [
-        (wid, chunk.tolist(), cond_prob_prefix, temp_dir,
-         LR_labels, isoform_labels, col_to_isoform, max_iter)
-        for wid, chunk in enumerate(community_chunks)
-        if len(chunk) > 0
-    ]
+    worker_args = []
+    for wid, chunk in enumerate(community_chunks):
+        if len(chunk) == 0:
+            continue
+        chunk_list     = [int(c) for c in chunk]
+        chunk_ranges   = {cid: community_ranges[cid] for cid in chunk_list}
+        chunk_iso_cols = {cid: community_iso_cols_map.get(cid, np.array([], dtype=np.intp))
+                         for cid in chunk_list}
+        worker_args.append(
+            (wid, chunk_list, cond_prob_prefix, sort_order_path,
+             chunk_ranges, chunk_iso_cols, max_iter)
+        )
+
+    # Expose large read-only dicts as module-level globals so that forked worker
+    # processes inherit them via Linux copy-on-write — no pickle serialisation,
+    # no repeated Lustre I/O, and negligible extra memory usage.
+    global _g_row_barcode, _g_row_umi, _g_col_to_isoform
+    _g_row_barcode    = row_barcode
+    _g_row_umi        = row_umi
+    _g_col_to_isoform = col_to_isoform
 
     if threads == 1:
         all_results = [_sc_worker(worker_args[0])]
     else:
-        pool = mp.Pool(threads)
+        # Explicitly use 'fork' so child processes inherit the module-level
+        # globals set above.  The default on Linux is already 'fork', but we
+        # make it explicit to prevent silent empty-result bugs if someone runs
+        # this on macOS (where the default changed to 'spawn' in Python 3.8).
+        ctx = mp.get_context('fork')
+        pool = ctx.Pool(threads)
         futures = [
             pool.apply_async(_sc_worker, (args,), error_callback=_callback_error)
             for args in worker_args
         ]
-        all_results = [f.get() for f in futures]
+        errors = []
+        all_results = []
+        for f in futures:
+            try:
+                all_results.append(f.get())
+            except Exception as e:
+                errors.append(e)
+                print(f'[{tag}] Worker failed: {e}', flush=True)
         pool.close()
         pool.join()
+        if errors:
+            raise RuntimeError(
+                f'[{tag}] {len(errors)} worker(s) failed. '
+                'Check logs above for details.'
+            )
 
     # ------------------------------------------------------------------
     # 6. Merge results from all workers
