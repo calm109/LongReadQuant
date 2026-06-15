@@ -9,7 +9,7 @@ and provides a clean interface for main.py, with **optional multi-process parall
 Parallelism strategy
 --------------------
 The two computationally heavy steps are:
-  • find_first_exon_TE_overlaps()          — O(n_transcripts × log n_TE)
+  • find_first_exon_TE_overlaps()          — O(n_transcripts x log n_TE)
   • calculate_enhanced_all_exon_TE_overlaps() — same order
 
 Both iterate over transcripts independently, so they can be parallelized by

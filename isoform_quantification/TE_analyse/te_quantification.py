@@ -5,7 +5,7 @@ Per-spot / per-cell TE quantification for miniQuant spatial / single-cell data.
 
 After running  cal_TE --skip-quantification  (which produces
 transcript_quantification_with_TE.tsv for every transcript in the GTF),
-this module merges the TE annotation with the spot × isoform UMI count
+this module merges the TE annotation with the spot x isoform UMI count
 matrix from a previous  quantify --st_mode  (or  --sc_mode) run to
 compute per-spot TE metrics.
 
@@ -32,7 +32,7 @@ Inputs
       Minimum TE-overlap proportion (overlap_length / TE_length) required
       to count a TE as "associated" with an isoform.  Default 0.5 (50 %).
   output_loci   : bool
-      If True, also write spot_te_loci_counts.tsv (spot × TE-locus matrix).
+      If True, also write spot_te_loci_counts.tsv (spot x TE-locus matrix).
       Can be very large; disabled by default.
 
 Outputs (all written to <output_dir>/)
@@ -114,7 +114,7 @@ def load_count_matrix(quant_dir: str):
 
     Returns
     -------
-    count_csr : scipy.sparse.csr_matrix  (n_spots × n_isoforms)
+    count_csr : scipy.sparse.csr_matrix  (n_spots x n_isoforms)
     barcodes  : list[str]
     isoforms  : list[str]
     """
@@ -139,24 +139,24 @@ def load_count_matrix(quant_dir: str):
     # --- matrix.mtx ---
     # MEX convention: rows = features (isoforms), cols = barcodes (spots), 1-indexed
     # scipy.io.mmread honours the %%MatrixMarket header and returns a coo_matrix
-    # in the same orientation (features × barcodes).  We transpose to spots × isoforms.
+    # in the same orientation (features x barcodes).  We transpose to spots x isoforms.
     n_iso = len(isoforms)
     n_spots = len(barcodes)
 
     try:
         mat_raw = scipy.io.mmread(os.path.join(mex_dir, "matrix.mtx"))
-        # mat_raw shape: (n_iso × n_spots) — transpose to (n_spots × n_iso)
+        # mat_raw shape: (n_iso x n_spots) — transpose to (n_spots x n_iso)
         count_csr = mat_raw.T.tocsr()
         # Sanity check: sizes must match
         if count_csr.shape != (n_spots, n_iso):
             raise ValueError(
                 f"Matrix shape {count_csr.shape} does not match "
-                f"({n_spots} spots × {n_iso} isoforms)"
+                f"({n_spots} spots x {n_iso} isoforms)"
             )
     except Exception as e:
         raise RuntimeError(f"Failed to load matrix.mtx: {e}") from e
 
-    print(f"[TE-SC] Count matrix: {n_spots} spots × {n_iso} isoforms, "
+    print(f"[TE-SC] Count matrix: {n_spots} spots x {n_iso} isoforms, "
           f"{count_csr.nnz} non-zero entries, total counts = {int(count_csr.sum())}",
           flush=True)
     return count_csr, barcodes, isoforms
@@ -216,7 +216,7 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     matrix multiplication.
 
     For each level (class / family / subfamily / locus), creates a binary
-    isoform × TE sparse matrix:  A[i, j] = 1  if isoform i is associated
+    isoform x TE sparse matrix:  A[i, j] = 1  if isoform i is associated
     with TE-level j (proportion >= threshold).
 
     Also builds isoform → transcript_classification mapping.
@@ -226,7 +226,7 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     agg : dict
         Keys: 'classification', 'class', 'family', 'subfamily', 'locus'
         Each value: (scipy.sparse.csr_matrix, list_of_column_labels)
-          shape: (n_isoforms × n_levels)
+          shape: (n_isoforms x n_levels)
     """
     n_iso = len(isoforms)
     isoform_to_idx = {iso: i for i, iso in enumerate(isoforms)}
@@ -331,7 +331,7 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
 
 
 # ---------------------------------------------------------------------------
-# Spot × TE matrix computation
+# Spot x TE matrix computation
 # ---------------------------------------------------------------------------
 
 def compute_spot_te_matrices(count_csr, agg, output_loci: bool = False):
@@ -339,8 +339,8 @@ def compute_spot_te_matrices(count_csr, agg, output_loci: bool = False):
     Compute per-spot TE count matrices via sparse matrix multiplication.
 
     spot_level_matrix = count_csr  @  iso_level_mat
-      (n_spots × n_iso)            (n_iso × n_levels)
-    = (n_spots × n_levels)
+      (n_spots x n_iso)            (n_iso x n_levels)
+    = (n_spots x n_levels)
 
     Returns dict:  level_name → (scipy.sparse.csr_matrix, column_labels)
     """
@@ -352,14 +352,63 @@ def compute_spot_te_matrices(count_csr, agg, output_loci: bool = False):
             continue
         spot_mat = count_csr.dot(iso_mat).tocsr()
         results[level] = (spot_mat, labels)
-        print(f"[TE-SC] Computed spot × {level}: "
-              f"{spot_mat.shape[0]} × {spot_mat.shape[1]}", flush=True)
+        print(f"[TE-SC] Computed spot x {level}: "
+              f"{spot_mat.shape[0]} x {spot_mat.shape[1]}", flush=True)
     return results
 
 
 # ---------------------------------------------------------------------------
 # Output writers
 # ---------------------------------------------------------------------------
+
+# Matrices with more columns than this threshold are written in MEX / MTX
+# format instead of TSV.  TSV is fine for small wide tables (class=18,
+# family=59, subfamily=~4K) but becomes prohibitively slow and large at
+# locus scale (79K+ columns x 77K+ cells = billions of cells).
+_MTX_COL_THRESHOLD = 500
+
+
+def _write_mtx_mex(output_dir: str, base: str, mat, barcodes: list,
+                   features: list, barcode_label: str) -> list:
+    """Write a sparse matrix in MEX (Market Exchange) format.
+
+    Creates three files:
+      <base>_barcodes.tsv   — one barcode per line
+      <base>_features.tsv   — one feature ID per line
+      <base>_matrix.mtx     — sparse coordinate format (feature x barcode)
+
+    Returns list of (filename, description) tuples for the README.
+    """
+    Path(output_dir).mkdir(parents=True, exist_ok=True)
+    bc_path  = os.path.join(output_dir, f"{base}_barcodes.tsv")
+    feat_path = os.path.join(output_dir, f"{base}_features.tsv")
+    mtx_path  = os.path.join(output_dir, f"{base}_matrix.mtx")
+
+    with open(bc_path, "w") as f:
+        f.write("\n".join(barcodes) + "\n")
+    with open(feat_path, "w") as f:
+        f.write("\n".join(str(x) for x in features) + "\n")
+
+    # Standard MEX convention: rows = features, cols = barcodes
+    coo = mat.T.tocoo().astype(int)
+    n_feat = len(features)
+    n_bc   = len(barcodes)
+    with open(mtx_path, "w") as f:
+        f.write("%%MatrixMarket matrix coordinate integer general\n")
+        f.write(f"%metadata_json: {{\"software_version\": \"LongReadQuant-TE\"}}\n")
+        f.write(f"{n_feat} {n_bc} {coo.nnz}\n")
+        for r, c, v in zip(coo.row, coo.col, coo.data):
+            f.write(f"{r + 1} {c + 1} {int(v)}\n")
+
+    return [
+        (f"{base}_barcodes.tsv", f"{n_bc} {barcode_label}s, one per line."),
+        (f"{base}_features.tsv", f"{n_feat} feature IDs, one per line."),
+        (f"{base}_matrix.mtx",
+         f"Sparse MTX: {n_feat} features x {n_bc} {barcode_label}s, "
+         f"{coo.nnz} non-zero entries.  "
+         "Load with: ReadMtx() in Seurat or scanpy.read_mtx()."),
+    ]
+
 
 def _level_filenames(unit: str) -> dict:
     return {
@@ -392,28 +441,42 @@ def write_spot_te_outputs(output_dir: str, spot_matrices: dict, barcodes: list,
     for level, (mat, labels) in spot_matrices.items():
         if not labels:
             continue
-        fname = filenames.get(level, f"{unit}_{level}_counts.tsv")
-        fpath = os.path.join(output_dir, fname)
 
         n_units, n_cols = mat.shape
-        if n_cols > 5000:
-            df = pd.DataFrame.sparse.from_spmatrix(
-                mat.tocsr(), index=barcodes, columns=labels
+
+        if n_cols > _MTX_COL_THRESHOLD:
+            # Large matrix: write as MEX/MTX sparse format to avoid writing
+            # billions of cells as text (e.g. 77K cells x 79K loci = 6 B cells).
+            base = os.path.splitext(
+                filenames.get(level, f"{unit}_{level}_counts.tsv")
+            )[0]
+            mtx_entries = _write_mtx_mex(
+                output_dir, base, mat, barcodes, labels, barcode_label
             )
+            for mfname, mdesc in mtx_entries:
+                written.append((mfname, n_units, n_cols, mdesc))
+            print(f"[TE-SC] Written MTX: {output_dir}/{base}_*  "
+                  f"({n_units} {unit}s x {n_cols} {level})", flush=True)
         else:
-            df = pd.DataFrame(
-                mat.toarray().astype(int), index=barcodes, columns=labels
-            )
-        df.index.name = barcode_label
-
-        try:
-            df = df.astype(int)
-        except Exception:
-            pass
-
-        df.to_csv(fpath, sep="\t")
-        written.append((fname, n_units, n_cols, descriptions.get(level, "")))
-        print(f"[TE-SC] Written: {fpath}  ({n_units} {unit}s × {n_cols} {level})", flush=True)
+            fname = filenames.get(level, f"{unit}_{level}_counts.tsv")
+            fpath = os.path.join(output_dir, fname)
+            if n_cols > 500:
+                df = pd.DataFrame.sparse.from_spmatrix(
+                    mat.tocsr(), index=barcodes, columns=labels
+                )
+            else:
+                df = pd.DataFrame(
+                    mat.toarray().astype(int), index=barcodes, columns=labels
+                )
+            df.index.name = barcode_label
+            try:
+                df = df.astype(pd.SparseDtype(int, fill_value=0))
+            except Exception:
+                pass
+            df.to_csv(fpath, sep="\t")
+            written.append((fname, n_units, n_cols, descriptions.get(level, "")))
+            print(f"[TE-SC] Written: {fpath}  ({n_units} {unit}s x {n_cols} {level})",
+                  flush=True)
 
     # README
     readme_lines = [
@@ -428,7 +491,7 @@ def write_spot_te_outputs(output_dir: str, spot_matrices: dict, barcodes: list,
     for fname, n_units, n_cols, desc in written:
         readme_lines += [
             f"  {fname}",
-            f"    {n_units} {unit}s × {n_cols} columns.",
+            f"    {n_units} {unit}s x {n_cols} columns.",
             f"    {desc}",
             f"    Row index: {barcode_label}.  Values: integer UMI counts.",
             "",
@@ -501,7 +564,7 @@ def run_sc_te_analysis(
     # 3. Build isoform → TE aggregation matrices
     agg = build_aggregation_matrices(isoforms, te_df, percent_threshold)
 
-    # 4. Compute spot × TE matrices
+    # 4. Compute spot x TE matrices
     spot_matrices = compute_spot_te_matrices(count_csr, agg, output_loci=output_loci)
 
     # 5. Write outputs
