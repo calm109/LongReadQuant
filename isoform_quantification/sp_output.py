@@ -13,13 +13,13 @@ After bulk EM gives final isoform proportions (theta), this module:
    ├── isoform/
    │   ├── barcodes.tsv        one cell barcode per line
    │   ├── features.tsv        isoform_id  gene_id  Gene Expression
-   │   ├── matrix.mtx          sparse UMI count matrix  (isoforms × cells)
-   │   ├── cpm_matrix.mtx      sparse CPM matrix        (isoforms × cells)
+   │   ├── matrix.mtx          sparse UMI count matrix  (isoforms x cells)
+   │   ├── cpm_matrix.mtx      sparse CPM matrix        (isoforms x cells)
    │   └── README.txt
    └── gene/
        ├── barcodes.tsv
        ├── features.tsv        gene_id  gene_id  Gene Expression
-       ├── matrix.mtx          gene-level UMI count matrix (genes × cells)
+       ├── matrix.mtx          gene-level UMI count matrix (genes x cells)
        ├── cpm_matrix.mtx      gene-level CPM matrix
        └── README.txt
 
@@ -97,7 +97,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     n_cells    = len(all_barcodes)
     n_isoforms = len(all_isoforms)
 
-    # Build isoform-level count matrix  (cells × isoforms)
+    # Build isoform-level count matrix  (cells x isoforms)
     rows_list, cols_list, data_list = [], [], []
     for bc, iso_counts in cell_isoform_counts.items():
         bc_i = barcode_idx[bc]
@@ -130,17 +130,17 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
             gene = isoform_gene_dict.get(iso, 'NA')
             f.write(f'{iso}\t{gene}\tGene Expression\n')
 
-    # UMI count matrix  (isoforms × cells, MEX convention)
+    # UMI count matrix  (isoforms x cells, MEX convention)
     mtx_csc = count_matrix.T.tocsc()
     with open(os.path.join(iso_dir, 'matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate integer general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write('%metadata_json: {"software_version": "LongReadQuant-SC"}\n')
         f.write(f'{n_isoforms} {n_cells} {mtx_csc.nnz}\n')
         cx = mtx_csc.tocoo()
         for r, c, v in zip(cx.row, cx.col, cx.data):
             f.write(f'{r + 1} {c + 1} {int(v)}\n')
 
-    # CPM matrix  (isoforms × cells)
+    # CPM matrix  (isoforms x cells)
     count_csr   = count_matrix.tocsr()
     cell_totals = np.asarray(count_csr.sum(axis=1)).flatten()
     cell_totals[cell_totals == 0] = 1.0
@@ -163,7 +163,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     )
     with open(os.path.join(iso_dir, 'cpm_matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate real general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write('%metadata_json: {"software_version": "LongReadQuant-SC"}\n')
         f.write(f'{n_isoforms} {n_cells} {cpm_matrix_coo.nnz}\n')
         for r, c, v in zip(cpm_matrix_coo.row,
                            cpm_matrix_coo.col,
@@ -177,7 +177,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
     gene_idx_map = {gene: i for i, gene in enumerate(all_genes)}
     n_genes      = len(all_genes)
 
-    # Isoform → gene aggregation matrix  (n_isoforms × n_genes)
+    # Isoform → gene aggregation matrix  (n_isoforms x n_genes)
     agg_rows = [i for i, iso in enumerate(all_isoforms)
                 if isoform_gene_dict.get(iso, 'NA') in gene_idx_map]
     agg_cols = [gene_idx_map[isoform_gene_dict[all_isoforms[i]]] for i in agg_rows]
@@ -186,7 +186,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
         shape=(n_isoforms, n_genes)
     ).tocsr()
 
-    # Gene count matrix  (genes × cells, MEX)
+    # Gene count matrix  (genes x cells, MEX)
     gene_count_matrix_T = (count_matrix @ iso_to_gene).T.tocoo()
 
     with open(os.path.join(gene_dir, 'barcodes.tsv'), 'w') as f:
@@ -198,14 +198,14 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
 
     with open(os.path.join(gene_dir, 'matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate integer general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write('%metadata_json: {"software_version": "LongReadQuant-SC"}\n')
         f.write(f'{n_genes} {n_cells} {gene_count_matrix_T.nnz}\n')
         for r, c, v in zip(gene_count_matrix_T.row,
                            gene_count_matrix_T.col,
                            gene_count_matrix_T.data):
             f.write(f'{r + 1} {c + 1} {int(v)}\n')
 
-    # Gene CPM matrix  (genes × cells)
+    # Gene CPM matrix  (genes x cells)
     gene_count_csr = (count_matrix @ iso_to_gene).tocsr()
     gene_cpm_coo = (gene_count_csr
                     .multiply(1.0 / cell_totals[:, np.newaxis])
@@ -213,7 +213,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
 
     with open(os.path.join(gene_dir, 'cpm_matrix.mtx'), 'w') as f:
         f.write('%%MatrixMarket matrix coordinate real general\n')
-        f.write('%metadata_json: {"software_version": "miniQuant-SC"}\n')
+        f.write('%metadata_json: {"software_version": "LongReadQuant-SC"}\n')
         f.write(f'{n_genes} {n_cells} {gene_cpm_coo.nnz}\n')
         for r, c, v in zip(gene_cpm_coo.row,
                            gene_cpm_coo.col,
@@ -252,7 +252,7 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
         '',
         'cpm_matrix.mtx',
         '  Sparse coordinate format (real CPM values).',
-        '  CPM normalised within each cell independently (UMI counts / total cell UMIs × 10^6).',
+        '  CPM normalised within each cell independently (UMI counts / total cell UMIs x 10^6).',
         '  Same structure as matrix.mtx but with "real" type and 4 decimal places.',
         '',
         '  Compatible with Seurat::ReadMtx() and scanpy.read_mtx().',
@@ -295,13 +295,13 @@ def _write_sc_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
         f.write('\n'.join(gene_readme) + '\n')
 
     print(f'[SC] Output written to: {output_path}', flush=True)
-    print(f'[SC]   isoform/matrix.mtx     — isoform UMI counts  ({n_isoforms} × {n_cells})',
+    print(f'[SC]   isoform/matrix.mtx     — isoform UMI counts  ({n_isoforms} x {n_cells})',
           flush=True)
-    print(f'[SC]   isoform/cpm_matrix.mtx — isoform CPM         ({n_isoforms} × {n_cells})',
+    print(f'[SC]   isoform/cpm_matrix.mtx — isoform CPM         ({n_isoforms} x {n_cells})',
           flush=True)
-    print(f'[SC]   gene/matrix.mtx        — gene UMI counts     ({n_genes} × {n_cells})',
+    print(f'[SC]   gene/matrix.mtx        — gene UMI counts     ({n_genes} x {n_cells})',
           flush=True)
-    print(f'[SC]   gene/cpm_matrix.mtx    — gene CPM            ({n_genes} × {n_cells})',
+    print(f'[SC]   gene/cpm_matrix.mtx    — gene CPM            ({n_genes} x {n_cells})',
           flush=True)
 
 
@@ -416,7 +416,7 @@ def generate_sc_matrix(output_path, isoform_gene_dict, isoform_len_dict,
     print(f'[SC] Reads skipped (no iso match) : {num_reads_no_iso}',    flush=True)
 
     # ------------------------------------------------------------------
-    # 4. UMI deduplication → cell × isoform count dict
+    # 4. UMI deduplication → cell x isoform count dict
     # ------------------------------------------------------------------
     cell_isoform_counts = defaultdict(dict)
     for barcode, iso_umis in cell_isoform_umis.items():

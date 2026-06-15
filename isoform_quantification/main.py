@@ -202,7 +202,7 @@ def parse_arguments():
                                  'and written to <sc_quant>/SC_output/TE/.')
     opt_te_cal.add_argument('--output_loci', action='store_true', default=True,
                             help='Also output spot_te_loci_counts.tsv '
-                                 '(spot/cell × individual TE locus matrix; may be very large)')
+                                 '(spot/cell x individual TE locus matrix; may be very large)')
 
     # -----------------------------------------------------------------------
     parser_TrEESR = subparsers.add_parser('cal_K_value', aliases=['TrEESR'],help='Calculate K values')
@@ -294,7 +294,7 @@ def parse_arguments():
     # Single-cell mode arguments
     sc_EM = parser_EM.add_argument_group('single-cell mode arguments')
     sc_EM.add_argument('--sc_mode',action='store_true',default=False,
-                       help="Enable single-cell mode: extract cell barcodes/UMIs and output a cell × isoform count matrix")
+                       help="Enable single-cell mode: extract cell barcodes/UMIs and output a cell x isoform count matrix")
     sc_EM.add_argument('--barcode_in_readname',action='store_true',default=True,
                        help="Barcode/UMI embedded in read name by flexiplex (default: True). Use --no-barcode_in_readname for CB/UB SAM tags")
     sc_EM.add_argument('--no_barcode_in_readname',dest='barcode_in_readname',action='store_false',
@@ -310,7 +310,7 @@ def parse_arguments():
     st_EM = parser_EM.add_argument_group('spatial transcriptomics mode arguments')
     st_EM.add_argument('--st_mode', action='store_true', default=False,
                        help="Enable spatial transcriptomics mode: extract spot barcodes/UMIs and output "
-                            "a spot × isoform count matrix. Use --barcode_in_readname / --no_barcode_in_readname "
+                            "a spot x isoform count matrix. Use --barcode_in_readname / --no_barcode_in_readname "
                             "to control barcode extraction (same as single-cell mode).")
     st_EM.add_argument('--barcode_whitelist', type=str, default=None,
                        help="Path to spatial barcode whitelist file (one barcode per line). "

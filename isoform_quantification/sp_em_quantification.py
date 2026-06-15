@@ -94,12 +94,12 @@ def _e_step(cond_prob, theta):
 
     Parameters
     ----------
-    cond_prob : ndarray (n_mol × n_iso)
+    cond_prob : ndarray (n_mol x n_iso)
     theta     : ndarray (n_iso,)
 
     Returns
     -------
-    q : ndarray (n_mol × n_iso), rows sum to 1
+    q : ndarray (n_mol x n_iso), rows sum to 1
     """
     weighted = cond_prob * theta
     row_sum = weighted.sum(axis=1, keepdims=True)
@@ -116,11 +116,11 @@ def _m_step(q):
 
 def _run_em(cond_prob, theta_init=None, max_iter=200, min_diff=1e-6):
     """
-    Run EM on a molecule × isoform cond_prob array.
+    Run EM on a molecule x isoform cond_prob array.
 
     Parameters
     ----------
-    cond_prob  : ndarray (n_mol × n_iso)
+    cond_prob  : ndarray (n_mol x n_iso)
     theta_init : ndarray (n_iso,) or None — None → uniform initialisation
     max_iter   : int
     min_diff   : float — convergence threshold
@@ -164,11 +164,11 @@ def _build_mol_matrix(umi_to_rows, cond_prob_dense):
     Parameters
     ----------
     umi_to_rows    : dict {umi_key: [local_row_indices]}
-    cond_prob_dense: ndarray (n_community_reads × n_community_iso)
+    cond_prob_dense: ndarray (n_community_reads x n_community_iso)
 
     Returns
     -------
-    mol_matrix : ndarray (n_molecules × n_community_iso)
+    mol_matrix : ndarray (n_molecules x n_community_iso)
     """
     rows = []
     for local_rows in umi_to_rows.values():
@@ -514,7 +514,7 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
         '',
         'cpm_matrix.mtx',
         '  Sparse coordinate format (real CPM values).',
-        f'  CPM normalised within each {unit} independently (UMI counts / total {unit} UMIs × 10^6).',
+        f'  CPM normalised within each {unit} independently (UMI counts / total {unit} UMIs x 10^6).',
         '  Same structure as matrix.mtx but with "real" type and 4 decimal places.',
         '',
         f'  Compatible with Seurat::ReadMtx() and scanpy.read_mtx().',
@@ -557,13 +557,13 @@ def _write_outputs(output_path, cell_isoform_counts, isoform_gene_dict,
         f.write('\n'.join(gene_readme) + '\n')
 
     print(f'[{tag}] Results written to: {sc_out_dir}', flush=True)
-    print(f'[{tag}]   isoform/matrix.mtx     — isoform UMI counts  ({n_isoforms} × {n_cells})',
+    print(f'[{tag}]   isoform/matrix.mtx     — isoform UMI counts  ({n_isoforms} x {n_cells})',
           flush=True)
-    print(f'[{tag}]   isoform/cpm_matrix.mtx — isoform CPM         ({n_isoforms} × {n_cells})',
+    print(f'[{tag}]   isoform/cpm_matrix.mtx — isoform CPM         ({n_isoforms} x {n_cells})',
           flush=True)
-    print(f'[{tag}]   gene/matrix.mtx        — gene UMI counts     ({n_genes} × {n_cells})',
+    print(f'[{tag}]   gene/matrix.mtx        — gene UMI counts     ({n_genes} x {n_cells})',
           flush=True)
-    print(f'[{tag}]   gene/cpm_matrix.mtx    — gene CPM            ({n_genes} × {n_cells})',
+    print(f'[{tag}]   gene/cpm_matrix.mtx    — gene CPM            ({n_genes} x {n_cells})',
           flush=True)
 
 
@@ -629,7 +629,7 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
          for wid in worker_ids]
     ).tocsr()
     n_reads_global, n_isoforms_global = cond_prob_global.shape
-    print(f'[{tag}] cond_prob: {n_reads_global} reads × {n_isoforms_global} isoforms',
+    print(f'[{tag}] cond_prob: {n_reads_global} reads x {n_isoforms_global} isoforms',
           flush=True)
 
     # Defer mmap save until after sorting by community (see step 4b below)
@@ -717,7 +717,7 @@ def run_sc_em_quantification(output_path, isoform_gene_dict, isoform_len_dict,
 
     # ------------------------------------------------------------------
     # 4c. Pre-compute community → row range and iso_cols (Proposals 1 & 2)
-    #     Eliminates O(n_reads × n_communities) linear scans in workers.
+    #     Eliminates O(n_reads x n_communities) linear scans in workers.
     # ------------------------------------------------------------------
     print(f'[{tag}] Pre-computing community indices...', flush=True)
 
