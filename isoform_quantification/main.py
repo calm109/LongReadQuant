@@ -73,6 +73,36 @@ def _run_cal_te(args):
         )
         print(f"\n[cal_TE] Single-cell TE output: {sc_te_output_dir}", flush=True)
 
+    # --- Optional spatial TE analysis (external/custom quantification) ---
+    if args.custom_st_quant is not None:
+        from TE_analyse.te_quantification import run_sc_te_analysis
+
+        custom_st_te_output_dir = os.path.join(args.output_path, "Custom_ST_TE_output")
+        run_sc_te_analysis(
+            te_table_path=te_table_path,
+            quant_dir=args.custom_st_quant,
+            output_dir=custom_st_te_output_dir,
+            percent_threshold=args.percent_threshold,
+            output_loci=args.output_loci,
+            barcode_label="spot_barcode",
+        )
+        print(f"\n[cal_TE] Custom spatial TE output: {custom_st_te_output_dir}", flush=True)
+
+    # --- Optional single-cell TE analysis (external/custom quantification) ---
+    if args.custom_sc_quant is not None:
+        from TE_analyse.te_quantification import run_sc_te_analysis
+
+        custom_sc_te_output_dir = os.path.join(args.output_path, "Custom_SC_TE_output")
+        run_sc_te_analysis(
+            te_table_path=te_table_path,
+            quant_dir=args.custom_sc_quant,
+            output_dir=custom_sc_te_output_dir,
+            percent_threshold=args.percent_threshold,
+            output_loci=args.output_loci,
+            barcode_label="cell_barcode",
+        )
+        print(f"\n[cal_TE] Custom single-cell TE output: {custom_sc_te_output_dir}", flush=True)
+
     # --- Optional bulk TE quantification ---
     if args.bulk_quant is not None:
         import pandas as pd
@@ -200,6 +230,24 @@ def parse_arguments():
                                  'that contains SC_output/isoform/). '
                                  'If provided, per-cell TE metrics are computed '
                                  'and written to <sc_quant>/SC_output/TE/.')
+    opt_te_cal.add_argument('--custom_st_quant', type=str, default=None,
+                            help='Path to a per-spot isoform quantification directory produced '
+                                 'by ANY tool (not necessarily LongReadQuant), as long as it '
+                                 'follows the standard 10x MEX layout (barcodes.tsv, '
+                                 'features.tsv, matrix.mtx — either directly in this directory '
+                                 'or under an isoform/ subdirectory). Isoform IDs must match '
+                                 'the transcript_id values produced by -gtf. '
+                                 'If provided, per-spot TE metrics are computed '
+                                 'and written to <output_path>/Custom_ST_TE_output/.')
+    opt_te_cal.add_argument('--custom_sc_quant', type=str, default=None,
+                            help='Path to a per-cell isoform quantification directory produced '
+                                 'by ANY tool (not necessarily LongReadQuant), as long as it '
+                                 'follows the standard 10x MEX layout (barcodes.tsv, '
+                                 'features.tsv, matrix.mtx — either directly in this directory '
+                                 'or under an isoform/ subdirectory). Isoform IDs must match '
+                                 'the transcript_id values produced by -gtf. '
+                                 'If provided, per-cell TE metrics are computed '
+                                 'and written to <output_path>/Custom_SC_TE_output/.')
     opt_te_cal.add_argument('--output_loci', action='store_true', default=True,
                             help='Also output spot_te_loci_counts.tsv '
                                  '(spot/cell x individual TE locus matrix; may be very large)')
