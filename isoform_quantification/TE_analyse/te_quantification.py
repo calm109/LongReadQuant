@@ -69,7 +69,9 @@ Aggregation logic
      it overlaps TEs from different classes — "attribute-to-all" policy.)
 """
 
+import gzip
 import os
+import re
 import sys
 from collections import defaultdict
 from pathlib import Path
@@ -84,10 +86,36 @@ import scipy.io
 # MTX / MEX loading helpers
 # ---------------------------------------------------------------------------
 
+def _resolve_mex_file(directory: str, base_name: str):
+    """
+    Resolve a MEX component file to its actual on-disk path, accepting either
+    the plain filename or a gzip-compressed '<base_name>.gz' variant (the
+    latter is the default CellRanger/10x output layout).
+
+    Returns the full path if either form exists, else None.
+    """
+    plain_path = os.path.join(directory, base_name)
+    gz_path = plain_path + ".gz"
+    if os.path.exists(plain_path):
+        return plain_path
+    if os.path.exists(gz_path):
+        return gz_path
+    return None
+
+
+def _open_text(path: str):
+    """Open a text file transparently, decompressing it if it ends in .gz."""
+    if path.endswith(".gz"):
+        return gzip.open(path, "rt")
+    return open(path, "r")
+
+
 def _find_isoform_mex_dir(quant_dir: str) -> str:
     """
     Locate the isoform MEX directory inside quant_dir.
     Tries several common sub-paths produced by miniQuant spatial/SC mode.
+    Each of barcodes.tsv / features.tsv / matrix.mtx may be plain text or
+    gzip-compressed (e.g. barcodes.tsv.gz).
     """
     candidates = [
         os.path.join(quant_dir, "ST_output", "isoform"),
@@ -96,14 +124,14 @@ def _find_isoform_mex_dir(quant_dir: str) -> str:
         quant_dir,
     ]
     for d in candidates:
-        if (os.path.exists(os.path.join(d, "barcodes.tsv"))
-                and os.path.exists(os.path.join(d, "features.tsv"))
-                and os.path.exists(os.path.join(d, "matrix.mtx"))):
+        if (_resolve_mex_file(d, "barcodes.tsv") is not None
+                and _resolve_mex_file(d, "features.tsv") is not None
+                and _resolve_mex_file(d, "matrix.mtx") is not None):
             print(f"[TE-SC] Found MEX isoform dir: {d}", flush=True)
             return d
     raise FileNotFoundError(
         f"Cannot find MEX isoform directory under '{quant_dir}'.\n"
-        "Expected barcodes.tsv, features.tsv, matrix.mtx in one of:\n"
+        "Expected barcodes.tsv(.gz), features.tsv(.gz), matrix.mtx(.gz) in one of:\n"
         + "\n".join(f"  {d}" for d in candidates)
     )
 
@@ -111,6 +139,8 @@ def _find_isoform_mex_dir(quant_dir: str) -> str:
 def load_count_matrix(quant_dir: str):
     """
     Load isoform UMI count matrix from MEX format.
+    barcodes.tsv, features.tsv and matrix.mtx may each be plain text or
+    gzip-compressed (e.g. barcodes.tsv.gz — the default CellRanger layout).
 
     Returns
     -------
@@ -119,10 +149,13 @@ def load_count_matrix(quant_dir: str):
     isoforms  : list[str]
     """
     mex_dir = _find_isoform_mex_dir(quant_dir)
+    barcodes_path = _resolve_mex_file(mex_dir, "barcodes.tsv")
+    features_path = _resolve_mex_file(mex_dir, "features.tsv")
+    matrix_path = _resolve_mex_file(mex_dir, "matrix.mtx")
 
     # --- barcodes ---
     barcodes = []
-    with open(os.path.join(mex_dir, "barcodes.tsv")) as f:
+    with _open_text(barcodes_path) as f:
         for line in f:
             bc = line.strip()
             if bc:
@@ -130,7 +163,7 @@ def load_count_matrix(quant_dir: str):
 
     # --- features (isoform IDs are the first column) ---
     isoforms = []
-    with open(os.path.join(mex_dir, "features.tsv")) as f:
+    with _open_text(features_path) as f:
         for line in f:
             parts = line.strip().split("\t")
             if parts:
@@ -139,12 +172,14 @@ def load_count_matrix(quant_dir: str):
     # --- matrix.mtx ---
     # MEX convention: rows = features (isoforms), cols = barcodes (spots), 1-indexed
     # scipy.io.mmread honours the %%MatrixMarket header and returns a coo_matrix
-    # in the same orientation (features x barcodes).  We transpose to spots x isoforms.
+    # in the same orientation (features x barcodes). It also auto-detects gzip
+    # compression from the '.gz' suffix, so matrix_path is passed through as-is.
+    # We transpose to spots x isoforms.
     n_iso = len(isoforms)
     n_spots = len(barcodes)
 
     try:
-        mat_raw = scipy.io.mmread(os.path.join(mex_dir, "matrix.mtx"))
+        mat_raw = scipy.io.mmread(matrix_path)
         # mat_raw shape: (n_iso x n_spots) — transpose to (n_spots x n_iso)
         count_csr = mat_raw.T.tocsr()
         # Sanity check: sizes must match
@@ -210,6 +245,44 @@ def _parse_te_entries(row, percent_threshold: float):
     return entries
 
 
+def _strip_version(transcript_id) -> str:
+    """Strip a trailing Ensembl-style version suffix (e.g. '.2') from an ID."""
+    return re.sub(r"\.\d+$", "", str(transcript_id))
+
+
+def build_te_id_resolver(isoforms, te_df):
+    """
+    Resolve each count-matrix isoform ID to the matching te_df index label.
+
+    Tries an exact match first; if that fails, falls back to comparing
+    version-stripped IDs (e.g. 'ENST00000448958' matches 'ENST00000448958.2').
+    This handles the common case where the GTF used by cal_TE carries
+    versioned transcript IDs but the quantification result (from
+    LongReadQuant or an external tool) does not, or vice versa.
+
+    Parameters
+    ----------
+    isoforms : list[str]   isoform IDs from the count matrix
+    te_df    : DataFrame   indexed by transcript_id (TE annotation table)
+
+    Returns
+    -------
+    dict  {isoform_id: te_df_index_label_or_None}
+    """
+    exact_ids = set(te_df.index)
+    stripped_to_exact = {}
+    for tid in te_df.index:
+        stripped_to_exact.setdefault(_strip_version(tid), tid)
+
+    resolved = {}
+    for iso in isoforms:
+        if iso in exact_ids:
+            resolved[iso] = iso
+        else:
+            resolved[iso] = stripped_to_exact.get(_strip_version(iso))
+    return resolved
+
+
 def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     """
     Build isoform → TE-level aggregation matrices for efficient sparse
@@ -220,6 +293,11 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     with TE-level j (proportion >= threshold).
 
     Also builds isoform → transcript_classification mapping.
+
+    Isoform IDs are matched against te_df's transcript_id exactly first,
+    falling back to a version-stripped comparison (see _strip_version) so
+    that a version-number mismatch alone does not cause every isoform to be
+    treated as unmatched.
 
     Returns
     -------
@@ -237,6 +315,8 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     te_df = te_df.drop_duplicates(subset="transcript_id", keep="first")
     te_df = te_df.set_index("transcript_id")
 
+    resolved_ids = build_te_id_resolver(isoforms, te_df)
+
     print(f"[TE-SC] Building aggregation matrices (threshold={percent_threshold:.2f})...",
           flush=True)
 
@@ -245,14 +325,14 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     subfam_set  = set()
     family_set  = set()
     class_set   = set()
-    class_label_set = set()
 
     iso_entries = {}   # isoform_idx -> list of TE entry dicts
 
     for iso, iso_idx in isoform_to_idx.items():
-        if iso not in te_df.index:
+        te_id = resolved_ids[iso]
+        if te_id is None:
             continue
-        row = te_df.loc[iso]
+        row = te_df.loc[te_id]
         entries = _parse_te_entries(row, percent_threshold)
         if entries:
             iso_entries[iso_idx] = entries
@@ -267,16 +347,17 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
 
     # --- classification mapping ---
     all_classifications = sorted(set(
-        str(te_df.loc[iso, "transcript_classification"])
-        if iso in te_df.index else "Gene-alone"
+        str(te_df.loc[resolved_ids[iso], "transcript_classification"])
+        if resolved_ids[iso] is not None else "Gene-alone"
         for iso in isoforms
     ) | {"Gene-alone"})
     class_label_to_idx = {c: i for i, c in enumerate(all_classifications)}
 
     class_rows, class_cols = [], []
     for iso_idx, iso in enumerate(isoforms):
-        if iso in te_df.index:
-            cls = str(te_df.loc[iso, "transcript_classification"])
+        te_id = resolved_ids[iso]
+        if te_id is not None:
+            cls = str(te_df.loc[te_id, "transcript_classification"])
         else:
             cls = "Gene-alone"
         c_idx = class_label_to_idx.get(cls, class_label_to_idx.get("Gene-alone", 0))
@@ -560,6 +641,26 @@ def run_sc_te_analysis(
 
     # 2. Load count matrix
     count_csr, barcodes, isoforms = load_count_matrix(quant_dir)
+
+    # 2b. Sanity check: isoform ID overlap between the count matrix and the TE
+    # annotation table. A low match rate usually means -gtf does not match the
+    # annotation that produced this quantification result (e.g. an external
+    # tool's novel/discovered transcripts are absent from -gtf). Matching uses
+    # the same exact-or-version-stripped resolver as build_aggregation_matrices
+    # (see _strip_version), so a version-number-only mismatch (e.g.
+    # 'ENST00000448958' vs 'ENST00000448958.2') no longer reads as 0% here.
+    resolved_ids = build_te_id_resolver(isoforms, te_df.set_index("transcript_id"))
+    matched = sum(1 for te_id in resolved_ids.values() if te_id is not None)
+    match_rate = matched / len(isoforms) if isoforms else 0.0
+    print(f"[TE-SC] Isoform ID match rate vs TE table: {match_rate:.1%} "
+          f"({matched}/{len(isoforms)})", flush=True)
+    if match_rate < 0.5:
+        print("[TE-SC][WARNING] Less than half of the isoform IDs in the count "
+              "matrix were found in the TE annotation table. TE counts will be "
+              "incomplete for the unmatched isoforms. Check that -gtf matches "
+              "the annotation used to produce this quantification result "
+              "(e.g. novel transcripts from an external tool's discovery mode "
+              "will not be found unless -gtf includes them).", flush=True)
 
     # 3. Build isoform → TE aggregation matrices
     agg = build_aggregation_matrices(isoforms, te_df, percent_threshold)
