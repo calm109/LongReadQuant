@@ -81,6 +81,9 @@ gunzip -c reads.fastq.gz | flexiplex -d 10x3v3 -f 0 -p 16 > flexiplex.out
 flexiplex-filter flexiplex_barcodes_counts.txt > flexiplex_barcodes_final.txt
 
 # 2. Demultiplexing against the whitelist
+# If you already have a barcode whitelist (e.g. a spatial barcode whitelist), skip
+# step 1 (Barcode discovery), replace flexiplex_barcodes_final.txt with your own
+# whitelist file, and run step 2 (Demultiplexing against the whitelist) directly.
 gunzip -c reads.fastq.gz | flexiplex -d 10x3v3 -p 16 -k flexiplex_barcodes_final.txt > demux.fastq
 
 # 3. UMI deduplication and consensus generation
