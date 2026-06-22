@@ -242,11 +242,48 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 
 | Argument | Description |
 |---|---|
-| `--bulk_quant` | Path to bulk quantification TSV (e.g. `Isoform_abundance.out`); triggers bulk TE expression computation |
-| `--sc_quant` | Path to SC_output directory from a prior `quantify --sc_mode` run; triggers per-cell TE metrics |
-| `--st_quant` | Path to ST_output directory from a prior `quantify --st_mode` run; triggers per-spot TE metrics |
+| `--bulk_quant` | Path to a bulk quantification TSV (e.g. `Isoform_abundance.out`, or any tool's output with a transcript-ID column and a TPM column — column names are auto-detected, so Salmon/kallisto/IsoQuant output works too); triggers bulk TE expression computation |
+| `--sc_quant` | Path to the quantification output directory from a prior LongReadQuant `quantify --sc_mode` run; triggers per-cell TE metrics, written to `<sc_quant>/SC_output/TE/` |
+| `--st_quant` | Path to the quantification output directory from a prior LongReadQuant `quantify --st_mode` run; triggers per-spot TE metrics, written to `<st_quant>/ST_output/TE/` |
+| `--custom_sc_quant` | Path to a per-cell isoform quantification directory produced by **any** tool (not necessarily LongReadQuant); triggers per-cell TE metrics, written to `<output_path>/Custom_SC_TE_output/` |
+| `--custom_st_quant` | Path to a per-spot isoform quantification directory produced by **any** tool; triggers per-spot TE metrics, written to `<output_path>/Custom_ST_TE_output/` |
 | `--percent_threshold` | Minimum TE-overlap proportion (overlap / TE_length) to associate a transcript with a TE [default: `0.5`] |
 | `--output_loci` | Also output a spot/cell × individual TE locus matrix (may be large) |
+
+`--sc_quant` / `--st_quant` / `--custom_sc_quant` / `--custom_st_quant` all expect the same
+directory layout: a standard 10x MEX triplet (`barcodes.tsv`, `features.tsv`, `matrix.mtx`),
+found either directly in the given directory or under an `isoform/`, `SC_output/isoform/` or
+`ST_output/isoform/` subdirectory. Each of the three MEX files may be plain text **or
+gzip-compressed** (e.g. `barcodes.tsv.gz` — the default CellRanger layout); both are detected
+automatically. Isoform IDs in `features.tsv` must match the `transcript_id` values produced
+from `-gtf`. Matching tries an exact string match first, then falls back to comparing IDs with
+any trailing Ensembl-style version suffix stripped (so `ENST00000448958` matches
+`ENST00000448958.2`) — a version-only mismatch between `-gtf` and the quantification result is
+therefore tolerated automatically. A low ID match rate is reported as a warning at runtime; if
+it persists after the version-stripped fallback, it usually means `-gtf` does not match the
+annotation used to produce the quantification result at all (e.g. novel transcripts from an
+external tool's discovery mode, or a different transcript ID namespace such as RefSeq vs.
+GENCODE).
+
+Use `--custom_sc_quant` / `--custom_st_quant` instead of `--sc_quant` / `--st_quant` when the
+isoform-level quantification was produced by a different tool — the TE aggregation logic is
+identical, only the input provenance and output location differ (results are written under
+`-o` instead of inside the input directory, so a read-only or third-party directory is never
+written to).
+
+**Example: TE quantification from another tool's per-cell results**
+
+```bash
+python main.py cal_TE \
+    -gtf annotation.gtf \
+    -te_gtf TE_annotation.gtf \
+    --custom_sc_quant /path/to/other_tool/per_cell_isoform_mex_dir \
+    -o output/te
+```
+
+Results are written to `output/te/Custom_SC_TE_output/`. `/path/to/other_tool/per_cell_isoform_mex_dir`
+must contain `barcodes.tsv`/`features.tsv`/`matrix.mtx` (plain or `.gz`), with isoform IDs matching
+`annotation.gtf`.
 
 ---
 
@@ -270,6 +307,12 @@ Reads carry cell barcode (CB) and UMI (UB) tags. After genome alignment:
 Barcode source (choose one):
 - Flexiplex output: barcodes embedded in read name → use `--barcode_in_readname` (default)
 - SAM tags (CB/UB): e.g. from STARsolo → use `--no_barcode_in_readname --cb_tag CB --umi_tag UB`
+
+### Spatial transcriptomics mode
+
+Identical to single-cell mode but uses spot barcodes. Additional options:
+- `--barcode_whitelist`: restrict to tissue-covered spots
+- `--tissue_positions`: attach spatial coordinates (array_row, array_col, pixel coordinates) to output
 
 ---
 
@@ -336,29 +379,49 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 | Output | Condition | Description |
 |---|---|---|
-| `transcript_TE_annotation.tsv` | always | Per-transcript TE overlap annotation table |
-| `Bulk_TE_output/` | `--bulk_quant` provided | TE expression at locus / subfamily / family / class level |
-| `SC_TE_output/` | `--sc_quant` provided | Per-cell TE count matrix (cell × TE class/family/locus) |
-| `ST_TE_output/` | `--st_quant` provided | Per-spot TE count matrix (spot × TE class/family/locus) |
+| `transcript_quantification_with_TE.tsv` | always | Per-transcript TE overlap annotation table (every transcript in `-gtf`) |
+| `TE_derived_transcripts.tsv` | any transcripts meet the TE-derived thresholds | Subset of transcripts classified as TE-derived, with dominant TE info |
+| `transcript_quantification_with_TE_TPM.tsv` | `--bulk_quant` provided | Same per-transcript table with real `transcript_TPM` values merged in |
+| `Bulk_TE_output/` | `--bulk_quant` provided | `TE_loci_exp_TPM.tsv`, `TE_subfamily_exp_TPM.tsv`, `TE_family_exp_TPM.tsv`, `TE_class_exp_TPM.tsv` — TE expression at locus / subfamily / family / class level |
+| `<sc_quant>/SC_output/TE/` | `--sc_quant` provided | Per-cell TE count tables, written **inside** the input quantification directory |
+| `<st_quant>/ST_output/TE/` | `--st_quant` provided | Per-spot TE count tables, written **inside** the input quantification directory |
+| `<output_path>/Custom_SC_TE_output/` | `--custom_sc_quant` provided | Per-cell TE count tables, for quantification results from any tool, written under `-o` |
+| `<output_path>/Custom_ST_TE_output/` | `--custom_st_quant` provided | Per-spot TE count tables, for quantification results from any tool, written under `-o` |
 
-**TE annotation columns** (in `transcript_TE_annotation.tsv`):
+**Per-cell / per-spot TE output files** (inside `SC_output/TE/`, `ST_output/TE/`,
+`Custom_SC_TE_output/` or `Custom_ST_TE_output/` — `cell_*` for SC, `spot_*` for ST):
+
+| File | Description |
+|---|---|
+| `{cell,spot}_transcript_classification_counts.tsv` | Per-cell/spot count breakdown by transcript classification (Gene-alone / TE-Gene / TE-alone / ...) |
+| `{cell,spot}_te_class_counts.tsv` | Per-cell/spot counts aggregated to TE class level (LINE, SINE, LTR, ...) |
+| `{cell,spot}_te_family_counts.tsv` | Per-cell/spot counts aggregated to TE family level |
+| `{cell,spot}_te_subfamily_counts.tsv` | Per-cell/spot counts aggregated to TE subfamily level |
+| `{cell,spot}_te_loci_counts.tsv` (or `*_matrix.mtx` MEX triplet if very wide) | Per-cell/spot counts aggregated to individual TE locus — only with `--output_loci` |
+| `README.txt` | Description of the files in this directory |
+
+**TE annotation columns** (in `transcript_quantification_with_TE.tsv`):
 
 | Column | Description |
 |---|---|
 | `transcript_id` | Transcript ID |
 | `gene_id` | Gene ID |
-| `TE_type` | TE classification: `Gene-alone`, `TE-alone`, `TE-Gene`, `Gene-TE`, `TE-Gene-TE` |
-| `TE_name` | TE element name |
-| `TE_family` / `TE_class` | TE subfamily and class |
-| `first_exon_TE_proportion` | TE proportion in first exon (%) |
-| `total_TE_proportion` | TE proportion across full transcript (%) |
-| `transcript_TPM` | Transcript expression (TPM from bulk quant, if provided) |
+| `transcript_TPM` | Transcript expression (TPM); `0` unless merged from `--bulk_quant` |
+| `transcript_length` | Transcript length (bp) |
+| `num_TEs` | Number of distinct TE elements overlapping this transcript |
+| `transcript_classification` | TE classification: `Gene-alone`, `TE-alone`, `TE-Gene`, `Gene-TE`, `TE-Gene-TE` |
+| `transcript_sub_classification` | Finer-grained sub-classification (comma-separated if multiple) |
+| `first_exon_TE_proportion` | TE proportion in the first exon (%) |
+| `total_transcript_TE_proportion` | TE proportion across the full transcript (%) |
+| `tss_200_overlap` / `tes_200_overlap` | TE overlap length (bp) within the 200 bp TSS / TES window |
+| `locus` / `subfamily` / `family` / `class` | Semicolon-separated TE locus / subfamily / family / class for each overlapping TE |
+| `length` / `overlap_length` | Semicolon-separated TE length / overlap length (bp) for each overlapping TE |
 
 ---
 
 ## Full Pipeline Examples
 
-### Bulk pipeline
+### Bulk pipeline (SLURM)
 
 ```bash
 #!/bin/bash
