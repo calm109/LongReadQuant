@@ -282,6 +282,7 @@ python main.py cal_TE \
     -gtf annotation.gtf \
     -te_gtf TE_annotation.gtf \
     --custom_sc_quant /path/to/other_tool/per_cell_isoform_mex_dir \
+    -t 16 \
     -o output/te
 ```
 
@@ -429,7 +430,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 ```bash
 #!/bin/bash
-#SBATCH --cpus-per-task=12 --mem=64G
+#SBATCH --cpus-per-task=16 --mem=64G
 
 source ~/miniforge3/etc/profile.d/conda.sh
 conda activate LongReadQuant
@@ -443,7 +444,7 @@ python isoform_quantification/main.py quantify \
     -gtf "$GTF" \
     -lrsam /path/to/LR.sam \
     --bulk_mode \
-    -t $SLURM_CPUS_PER_TASK \
+    -t 16 \
     -o "$OUT_DIR"
 
 # Step 2: TE quantification
@@ -451,6 +452,7 @@ python isoform_quantification/main.py cal_TE \
     -gtf "$GTF" \
     -te_gtf "$TE_GTF" \
     --bulk_quant "$OUT_DIR/Isoform_abundance.out" \
+    -t 16 \
     -o "$OUT_DIR/te"
 ```
 
@@ -461,7 +463,7 @@ python isoform_quantification/main.py cal_TE \
 SAMPLE="sample_name"
 RAW_FQ="${SAMPLE}.fastq.gz"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
-THREADS=72; OUT_DIR="output/sc"
+THREADS=16; OUT_DIR="output/sc"
 
 # Step 1: barcode discovery & demultiplexing
 gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
@@ -487,6 +489,7 @@ python isoform_quantification/main.py quantify \
 python isoform_quantification/main.py cal_TE \
     -gtf "$GTF" -te_gtf "$TE_GTF" \
     --sc_quant "$OUT_DIR" \
+    -t 16 \
     -o "$OUT_DIR/te"
 ```
 
@@ -496,7 +499,7 @@ python isoform_quantification/main.py cal_TE \
 #!/bin/bash
 SAMPLE="sample_name"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
-THREADS=64; OUT_DIR="output/st"
+THREADS=16; OUT_DIR="output/st"
 
 # Steps 1–3: same as single-cell (use Visium barcode whitelist for flexiplex)
 
@@ -512,5 +515,6 @@ python isoform_quantification/main.py quantify \
 python isoform_quantification/main.py cal_TE \
     -gtf "$GTF" -te_gtf "$TE_GTF" \
     --st_quant "$OUT_DIR" \
+    -t 16 \
     -o "$OUT_DIR/te"
 ```
