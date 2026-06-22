@@ -121,7 +121,7 @@ python isoform_quantification/main.py quantify \
     --sc_mode \
     --no_barcode_in_readname \
     --cb_tag CB --umi_tag UB \
-    -t 72 \
+    -t 12 \
     -o output/sc
 
 # Step 5: TE quantification
@@ -129,6 +129,7 @@ python isoform_quantification/main.py cal_TE \
     -gtf annotation.gtf \
     -te_gtf TE_annotation.gtf \
     --sc_quant output/sc \
+    -t 12 \
     -o output/sc/te
 ```
 
@@ -145,7 +146,7 @@ python isoform_quantification/main.py quantify \
     --no_barcode_in_readname \
     --barcode_whitelist tissue_barcodes.txt \
     --tissue_positions tissue_positions.csv \
-    -t 64 \
+    -t 12 \
     -o output/st
 
 # Step 5: TE quantification
@@ -153,6 +154,7 @@ python isoform_quantification/main.py cal_TE \
     -gtf annotation.gtf \
     -te_gtf TE_annotation.gtf \
     --st_quant output/st \
+    -t 12 \
     -o output/st/te
 ```
 
