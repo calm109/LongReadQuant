@@ -253,7 +253,6 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 | `--custom_sc_quant` | Path to a per-cell isoform quantification directory produced by **any** tool (not necessarily LongReadQuant); triggers per-cell TE metrics, written to `<output_path>/Custom_SC_TE_output/` |
 | `--custom_st_quant` | Path to a per-spot isoform quantification directory produced by **any** tool; triggers per-spot TE metrics, written to `<output_path>/Custom_ST_TE_output/` |
 | `--percent_threshold` | Minimum TE-overlap proportion (overlap / TE_length) to associate a transcript with a TE [default: `0.5`] |
-| `--output_loci` | Also output a spot/cell × individual TE locus matrix (may be large) |
 
 `--sc_quant` / `--st_quant` / `--custom_sc_quant` / `--custom_st_quant` all expect the same
 directory layout: a standard 10x MEX triplet (`barcodes.tsv`, `features.tsv`, `matrix.mtx`),
