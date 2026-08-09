@@ -1,6 +1,6 @@
 # miniTEQuant — Long-Read RNA Isoform and TE Quantification
 
-miniTEQuant is a long-read RNA-seq isoform quantification tool that supports bulk, single-cell (SC), and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments, with optional short-read integration. It also provides transposable element (TE) quantification at the bulk, per-cell, and per-spot level.
+miniTEQuant is a long-read RNA-seq isoform quantification tool that supports single-cell (SC) and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments. It also provides transposable element (TE) quantification at the per-cell and per-spot level.
 
 ## Table of Contents
 
@@ -17,10 +17,10 @@ miniTEQuant is a long-read RNA-seq isoform quantification tool that supports bul
 
 ## Features
 
-- **Multi-mode support**: bulk, single-cell (10x Chromium), and spatial transcriptomics (Visium / Visium HD)
+- **Multi-mode support**: single-cell (10x Chromium) and spatial transcriptomics (Visium / Visium HD)
 - **EM-based isoform quantification**: community-based parallel EM on gene-level bipartite graphs
 - **UMI deduplication**: exact-match or Hamming-distance-based UMI collapsing for SC/ST modes
-- **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and per-spot data
+- **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for per-cell and per-spot data
 ![miniTEQuant Overview](miniTEQuant.png) 
 ---
 
