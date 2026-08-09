@@ -98,17 +98,6 @@ nailpolish consensus -t 16 demux.fastq > dedup.fastq
 
 ## Quick Start
 
-### Bulk mode
-
-```bash
-python isoform_quantification/main.py quantify \
-    -gtf annotation.gtf \
-    -lrsam LR.sam \
-    --bulk_mode \
-    -t 16 \
-    -o output/bulk
-```
-
 ### Single-cell mode
 
 ```bash
@@ -144,8 +133,6 @@ python isoform_quantification/main.py quantify \
     -lrsam LR_dedup.sam \
     --st_mode \
     --no_barcode_in_readname \
-    --barcode_whitelist tissue_barcodes.txt \
-    --tissue_positions tissue_positions.csv \
     -t 16 \
     -o output/st
 
