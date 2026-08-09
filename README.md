@@ -1,6 +1,6 @@
-# LongReadQuant — Long-Read RNA Isoform Quantification
+# miniTEQuant — Long-Read RNA Isoform Quantification
 
-LongReadQuant is a long-read RNA-seq isoform quantification tool that supports bulk, single-cell (SC), and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments, with optional short-read integration. It also provides transposable element (TE) quantification at the bulk, per-cell, and per-spot level.
+miniTEQuant is a long-read RNA-seq isoform quantification tool that supports bulk, single-cell (SC), and spatial transcriptomics (ST) analyses. It uses a community-based EM algorithm (expectation-maximization) to estimate isoform abundances from long-read alignments, with optional short-read integration. It also provides transposable element (TE) quantification at the bulk, per-cell, and per-spot level.
 
 ## Table of Contents
 
@@ -21,16 +21,16 @@ LongReadQuant is a long-read RNA-seq isoform quantification tool that supports b
 - **EM-based isoform quantification**: community-based parallel EM on gene-level bipartite graphs
 - **UMI deduplication**: exact-match or Hamming-distance-based UMI collapsing for SC/ST modes
 - **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and per-spot data
-![miniQuant Overview](LongReadQuant.png)
+![miniQuant Overview](miniTEQuant.png)
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/calm109/LongReadQuant.git
-cd LongReadQuant
+git clone https://github.com/calm109/miniTEQuant.git
+cd miniTEQuant
 conda env create -f environment.yml
-conda activate LongReadQuant
+conda activate miniTEQuant
 ```
 
 ### Additional dependencies for SC / ST modes
@@ -248,9 +248,9 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 | Argument | Description |
 |---|---|
 | `--bulk_quant` | Path to a bulk quantification TSV (e.g. `Isoform_abundance.out`, or any tool's output with a transcript-ID column and a TPM column — column names are auto-detected, so Salmon/kallisto/IsoQuant output works too); triggers bulk TE expression computation |
-| `--sc_quant` | Path to the quantification output directory from a prior LongReadQuant `quantify --sc_mode` run; triggers per-cell TE metrics, written to `<sc_quant>/SC_output/TE/` |
-| `--st_quant` | Path to the quantification output directory from a prior LongReadQuant `quantify --st_mode` run; triggers per-spot TE metrics, written to `<st_quant>/ST_output/TE/` |
-| `--custom_sc_quant` | Path to a per-cell isoform quantification directory produced by **any** tool (not necessarily LongReadQuant); triggers per-cell TE metrics, written to `<output_path>/Custom_SC_TE_output/` |
+| `--sc_quant` | Path to the quantification output directory from a prior miniTEQuant `quantify --sc_mode` run; triggers per-cell TE metrics, written to `<sc_quant>/SC_output/TE/` |
+| `--st_quant` | Path to the quantification output directory from a prior miniTEQuant `quantify --st_mode` run; triggers per-spot TE metrics, written to `<st_quant>/ST_output/TE/` |
+| `--custom_sc_quant` | Path to a per-cell isoform quantification directory produced by **any** tool (not necessarily miniTEQuant); triggers per-cell TE metrics, written to `<output_path>/Custom_SC_TE_output/` |
 | `--custom_st_quant` | Path to a per-spot isoform quantification directory produced by **any** tool; triggers per-spot TE metrics, written to `<output_path>/Custom_ST_TE_output/` |
 | `--percent_threshold` | Minimum TE-overlap proportion (overlap / TE_length) to associate a transcript with a TE [default: `0.5`] |
 
@@ -433,7 +433,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 #SBATCH --cpus-per-task=16 --mem=64G
 
 source ~/miniforge3/etc/profile.d/conda.sh
-conda activate LongReadQuant
+conda activate miniTEQuant
 
 GTF="/path/to/annotation.gtf"
 TE_GTF="/path/to/TE_annotation.gtf"
