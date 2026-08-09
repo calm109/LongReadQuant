@@ -382,49 +382,19 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 ## Full Pipeline Examples
 
-### Bulk pipeline (SLURM)
-
-```bash
-#!/bin/bash
-#SBATCH --cpus-per-task=16 --mem=64G
-
-source ~/miniforge3/etc/profile.d/conda.sh
-conda activate miniTEQuant
-
-GTF="/path/to/annotation.gtf"
-TE_GTF="/path/to/TE_annotation.gtf"
-OUT_DIR="output/bulk"
-
-# Step 1: isoform quantification
-python isoform_quantification/main.py quantify \
-    -gtf "$GTF" \
-    -lrsam /path/to/LR.sam \
-    --bulk_mode \
-    -t 16 \
-    -o "$OUT_DIR"
-
-# Step 2: TE quantification
-python isoform_quantification/main.py cal_TE \
-    -gtf "$GTF" \
-    -te_gtf "$TE_GTF" \
-    --bulk_quant "$OUT_DIR/Isoform_abundance.out" \
-    -t 16 \
-    -o "$OUT_DIR/te"
-```
-
 ### Single-cell pipeline (ONT, 10x 3' v3)
 
 ```bash
 #!/bin/bash
-SAMPLE="sample_name"
+SAMPLE="Sample.fastq.gz"
 RAW_FQ="${SAMPLE}.fastq.gz"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
 THREADS=16; OUT_DIR="output/sc"
 
 # Step 1: barcode discovery & demultiplexing
-gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
+gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
 flexiplex-filter flexiplex_barcodes_counts.txt > barcodes_whitelist.txt
-gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
+gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
 
 # Step 2: UMI deduplication
 nailpolish index --skip-unmatched demux.fastq
@@ -453,18 +423,28 @@ python isoform_quantification/main.py cal_TE \
 
 ```bash
 #!/bin/bash
-SAMPLE="sample_name"
+SAMPLE="Sample.fastq.gz"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
 THREADS=16; OUT_DIR="output/st"
 
-# Steps 1–3: same as single-cell (use Visium barcode whitelist for flexiplex)
+# Step 1: barcode discovery & demultiplexing
+gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
+flexiplex-filter flexiplex_barcodes_counts.txt > barcodes_whitelist.txt
+gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
+
+# Step 2: UMI deduplication
+nailpolish index --skip-unmatched demux.fastq
+nailpolish summary demux.fastq
+nailpolish consensus -t $THREADS demux.fastq > dedup.fastq && rm demux.fastq
+
+# Step 3: alignment
+[ ! -f "$INDEX" ] && minimap2 -d "$INDEX" "$REF"
+minimap2 -y -ax splice --MD --secondary=no -G 200k -t $THREADS "$INDEX" dedup.fastq > LR.sam
 
 # Step 4: isoform quantification
 python isoform_quantification/main.py quantify \
     -gtf "$GTF" -lrsam LR.sam \
     --st_mode --no_barcode_in_readname \
-    --barcode_whitelist tissue_barcodes.txt \
-    --tissue_positions tissue_positions.csv \
     -t $THREADS -o "$OUT_DIR"
 
 # Step 5: TE quantification
