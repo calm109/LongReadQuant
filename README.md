@@ -21,7 +21,7 @@ miniTEQuant is a long-read RNA-seq isoform quantification tool that supports bul
 - **EM-based isoform quantification**: community-based parallel EM on gene-level bipartite graphs
 - **UMI deduplication**: exact-match or Hamming-distance-based UMI collapsing for SC/ST modes
 - **TE quantification**: annotates transcripts by TE overlap and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and per-spot data
-![miniQuant Overview](miniTEQuant.png)
+![miniTEQuant Overview](miniTEQuant.png)
 ---
 
 ## Installation
