@@ -219,6 +219,12 @@ python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
 | `-te_gtf` / `--te_gtf_path` | Path to TE GTF annotation file |
 | `-o` / `--output_path` | Output directory |
 
+### General optional arguments
+
+| Argument | Default | Description |
+|---|---|---|
+| `-t` / `--threads` | `1` | Number of parallel worker processes for the TE-overlap computation (transcripts are grouped by chromosome and distributed across workers; recommended value is the number of chromosomes or available CPU cores, whichever is smaller) |
+
 ### TE annotation thresholds
 
 | Argument | Default | Description |
@@ -354,7 +360,7 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 | File | Description |
 |---|---|
-| `{cell,spot}_transcript_classification_counts.tsv` | Per-cell/spot count breakdown by transcript classification (Gene-alone / TE-Gene / TE-alone / ...) |
+| `{cell,spot}_transcript_classification_counts.tsv` | Per-cell/spot count breakdown by transcript classification (`Gene-alone` / `TE-alone` / `TE-Gene`) |
 | `{cell,spot}_te_class_counts.tsv` | Per-cell/spot counts aggregated to TE class level (LINE, SINE, LTR, ...) |
 | `{cell,spot}_te_family_counts.tsv` | Per-cell/spot counts aggregated to TE family level |
 | `{cell,spot}_te_subfamily_counts.tsv` | Per-cell/spot counts aggregated to TE subfamily level |
@@ -370,8 +376,9 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 | `transcript_TPM` | Transcript expression (TPM); not populated for SC/ST workflows (always `0`) |
 | `transcript_length` | Transcript length (bp) |
 | `num_TEs` | Number of distinct TE elements overlapping this transcript |
+| `TE_class` | Deduplicated, semicolon-separated set of TE classes overlapping this transcript (unlike `class` below, each class appears at most once regardless of how many loci contribute it) |
 | `transcript_classification` | TE classification: `Gene-alone`, `TE-alone`, `TE-Gene`, `Gene-TE`, `TE-Gene-TE` |
-| `transcript_sub_classification` | Finer-grained sub-classification (comma-separated if multiple) |
+| `transcript_sub_classification` | Sub-classification for `TE-Gene` transcripts, comma-separated if multiple: `TSS`, `TE-terminating`, `TE-exonization` |
 | `first_exon_TE_proportion` | TE proportion in the first exon (%) |
 | `total_transcript_TE_proportion` | TE proportion across the full transcript (%) |
 | `tss_200_overlap` / `tes_200_overlap` | TE overlap length (bp) within the 200 bp TSS / TES window |
