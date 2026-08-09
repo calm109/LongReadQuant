@@ -94,6 +94,34 @@ nailpolish consensus -t 16 demux.fastq > dedup.fastq
 
 > For ST (Visium), a spatial barcode whitelist is typically available from Space Ranger output. Pass it directly to flexiplex with `-k` instead of the auto-discovered whitelist.
 
+### TE annotation preparation (for `cal_TE`)
+
+`cal_TE` requires a TE GTF (`-te_gtf`) built from a RepeatMasker `.out` file. Convert it once with `create_simple_TE_gtf.py`.
+
+**`create_simple_TE_gtf.py`** — Converts RepeatMasker `.out` files to GTF format for TE annotations.
+
+Purpose:
+- Handles RepeatMasker `.out` column-width output format
+- Generates a standardized GTF with TE hierarchy (`class_id` / `family_id` / `gene_id`=subfamily / `transcript_id`=locus name / `locus`)
+- Calculates consensus TE length and truncation proportion from the `rep_start`/`rep_end`/`rep_left` columns
+
+Command:
+
+```bash
+python isoform_quantification/TE_analyse/create_simple_TE_gtf.py \
+    -i repeatmasker.fa.out \
+    -o TE_annotation.gtf
+```
+
+Parameters:
+
+| Argument | Description |
+|---|---|
+| `-i` / `--input` (required) | Input RepeatMasker `.out` file path |
+| `-o` / `--output` (required) | Output GTF file path for TE annotations |
+
+The resulting `TE_annotation.gtf` is the `-te_gtf` input for the [`cal_TE` subcommand](#subcommand-cal_te).
+
 ---
 
 ## Quick Start
@@ -205,7 +233,7 @@ python main.py quantify -gtf <GTF> -o <OUTPUT> [options]
 
 ## Subcommand: `cal_TE`
 
-Annotates each transcript by overlap with transposable elements and computes TE expression at locus / subfamily / family / class level for bulk, per-cell, and/or per-spot data.
+Annotates each transcript by overlap with transposable elements and computes TE expression at locus / subfamily / family / class level for per-cell and/or per-spot data. The `-te_gtf` input is built from a RepeatMasker `.out` file — see [TE annotation preparation](#te-annotation-preparation-for-cal_te).
 
 ```
 python main.py cal_TE -gtf <GTF> -te_gtf <TE_GTF> -o <OUTPUT> [options]
@@ -340,7 +368,7 @@ CPM is used (not TPM) because UMI counts are not length-biased — each UMI repr
 
 Same structure as `SC_output/` but under `ST_output/`. Spot barcodes replace cell barcodes.
 
-If `--tissue_positions` is provided, spatial coordinates are appended to the output for direct import into Squidpy / SpatialDE.
+`--tissue_positions` is currently not wired into this output (see [Spatial transcriptomics mode arguments](#spatial-transcriptomics-mode-arguments)) — join `tissue_positions.csv` on the barcode column downstream (e.g. against `barcodes.tsv`) to bring in spatial coordinates for Squidpy / SpatialDE.
 
 ---
 
@@ -393,15 +421,15 @@ If `--tissue_positions` is provided, spatial coordinates are appended to the out
 
 ```bash
 #!/bin/bash
-SAMPLE="Sample.fastq.gz"
+SAMPLE="sample_name"
 RAW_FQ="${SAMPLE}.fastq.gz"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
 THREADS=16; OUT_DIR="output/sc"
 
 # Step 1: barcode discovery & demultiplexing
-gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
+gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
 flexiplex-filter flexiplex_barcodes_counts.txt > barcodes_whitelist.txt
-gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
+gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
 
 # Step 2: UMI deduplication
 nailpolish index --skip-unmatched demux.fastq
@@ -430,14 +458,15 @@ python isoform_quantification/main.py cal_TE \
 
 ```bash
 #!/bin/bash
-SAMPLE="Sample.fastq.gz"
+SAMPLE="sample_name"
+RAW_FQ="${SAMPLE}.fastq.gz"
 REF="genome.fa"; INDEX="genome.mmi"; GTF="annotation.gtf"; TE_GTF="TE_annotation.gtf"
 THREADS=16; OUT_DIR="output/st"
 
 # Step 1: barcode discovery & demultiplexing
-gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
+gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -f 0 -p $THREADS > flexiplex.out
 flexiplex-filter flexiplex_barcodes_counts.txt > barcodes_whitelist.txt
-gunzip -c "$SAMPLE" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
+gunzip -c "$RAW_FQ" | flexiplex -d 10x3v3 -p $THREADS -k barcodes_whitelist.txt > demux.fastq
 
 # Step 2: UMI deduplication
 nailpolish index --skip-unmatched demux.fastq
