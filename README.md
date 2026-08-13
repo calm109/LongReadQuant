@@ -31,6 +31,7 @@ git clone https://github.com/calm109/miniTEQuant.git
 cd miniTEQuant
 conda env create -f environment.yml
 conda activate miniTEQuant
+conda install -c bioconda -c conda-forge flexiplex
 ```
 
 ### Additional dependencies for SC / ST modes
