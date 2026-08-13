@@ -43,7 +43,7 @@ conda install -c bioconda minimap2
 | [flexiplex](https://davidsongroup.github.io/flexiplex/) | Barcode discovery and demultiplexing | `conda install -c bioconda -c conda-forge flexiplex` |
 | [nailpolish](https://github.com/DavidsonGroup/nailpolish) | UMI-based read deduplication and consensus | See below |
 
-> `minimap2` and `flexiplex` install cleanly via conda/bioconda, as shown above. `nailpolish` does not currently ship a conda package, so it is installed separately from a precompiled binary (below). All three are required for the SC/ST barcode → dedup → align pipeline described under [Data Preparation](#data-preparation); `quantify` in bulk mode only needs `minimap2`.
+> `minimap2` and `flexiplex` install cleanly via conda/bioconda, as shown above. `nailpolish` does not currently ship a conda package, so it is installed separately from a precompiled binary (below). All three are required for the SC/ST barcode → dedup → align pipeline described under [Data Preparation](#data-preparation).
 
 ```bash
 # nailpolish (Linux precompiled binary)
