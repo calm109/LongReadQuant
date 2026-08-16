@@ -1,5 +1,5 @@
 name: miniTEQuant
-channel:
+channels:
   - conda-forge
   - bioconda
   - defaults
