@@ -71,7 +71,19 @@ def serialize_community_worker(worker_id,worker_label,LR_labels,isoform_labels,c
         worker_cond_prob.append(community_cond_prob)
         worker_isoform.append(community_isoform)
         worker_community.append(community_index)
-    np.savez(f'{output_path}/temp/community/{worker_id}.npz', cond_prob=worker_cond_prob,isoform=worker_isoform,community=worker_community)
+    # Communities have differing numbers of reads/isoforms, so worker_cond_prob
+    # (mixed-shape scipy sparse matrices) and worker_isoform (variable-length
+    # int arrays) are ragged. NumPy >=1.24 no longer silently promotes a list
+    # of unevenly shaped elements to a dtype=object array when np.savez calls
+    # np.asanyarray() on it; it raises "ValueError: setting an array element
+    # with a sequence ... inhomogeneous shape" instead. Build the object
+    # arrays explicitly so each entry is stored as an opaque, pickled object
+    # (EM_worker() already reads these back with allow_pickle=True).
+    cond_prob_obj_arr = np.empty(len(worker_cond_prob), dtype=object)
+    cond_prob_obj_arr[:] = worker_cond_prob
+    isoform_obj_arr = np.empty(len(worker_isoform), dtype=object)
+    isoform_obj_arr[:] = worker_isoform
+    np.savez(f'{output_path}/temp/community/{worker_id}.npz', cond_prob=cond_prob_obj_arr,isoform=isoform_obj_arr,community=np.array(worker_community))
 def serialize_community(LR_labels,isoform_labels,cond_prob,output_path,threads):
     Path(f'{output_path}/temp/community/').mkdir(exist_ok=True,parents=True)
     pool = mp.Pool(threads)
