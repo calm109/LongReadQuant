@@ -146,7 +146,17 @@ def load_count_matrix(quant_dir: str):
     -------
     count_csr : scipy.sparse.csr_matrix  (n_spots x n_isoforms)
     barcodes  : list[str]
-    isoforms  : list[str]
+    isoforms  : list[str]        column-1 feature ID (used to index the matrix
+                                  and all output files, exactly as before)
+    isoform_alt_ids : list[str]  column-2 feature ID if the features.tsv has
+                                  one, else "" for every row. Some upstream
+                                  tools write a placeholder in column 1 (e.g.
+                                  'unknown_00000') and the real transcript ID
+                                  in column 2, instead of the
+                                  '<isoform_id> <gene_id> Gene Expression'
+                                  layout LongReadQuant itself writes; this
+                                  column is kept alongside so TE-ID matching
+                                  can fall back to it (see build_te_id_resolver).
     """
     mex_dir = _find_isoform_mex_dir(quant_dir)
     barcodes_path = _resolve_mex_file(mex_dir, "barcodes.tsv")
@@ -161,13 +171,16 @@ def load_count_matrix(quant_dir: str):
             if bc:
                 barcodes.append(bc)
 
-    # --- features (isoform IDs are the first column) ---
+    # --- features (column 1 = feature ID used for indexing; column 2, if
+    # present, is kept as an alternate ID for TE-matching fallback) ---
     isoforms = []
+    isoform_alt_ids = []
     with _open_text(features_path) as f:
         for line in f:
             parts = line.strip().split("\t")
-            if parts:
+            if parts and parts[0]:
                 isoforms.append(parts[0])
+                isoform_alt_ids.append(parts[1] if len(parts) > 1 else "")
 
     # --- matrix.mtx ---
     # MEX convention: rows = features (isoforms), cols = barcodes (spots), 1-indexed
@@ -194,7 +207,7 @@ def load_count_matrix(quant_dir: str):
     print(f"[TE-SC] Count matrix: {n_spots} spots x {n_iso} isoforms, "
           f"{count_csr.nnz} non-zero entries, total counts = {int(count_csr.sum())}",
           flush=True)
-    return count_csr, barcodes, isoforms
+    return count_csr, barcodes, isoforms, isoform_alt_ids
 
 
 # ---------------------------------------------------------------------------
@@ -250,7 +263,16 @@ def _strip_version(transcript_id) -> str:
     return re.sub(r"\.\d+$", "", str(transcript_id))
 
 
-def build_te_id_resolver(isoforms, te_df):
+def _resolve_one(candidate, exact_ids, stripped_to_exact):
+    """Exact-then-version-stripped lookup of a single candidate ID."""
+    if not candidate:
+        return None
+    if candidate in exact_ids:
+        return candidate
+    return stripped_to_exact.get(_strip_version(candidate))
+
+
+def build_te_id_resolver(isoforms, te_df, alt_ids=None):
     """
     Resolve each count-matrix isoform ID to the matching te_df index label.
 
@@ -260,10 +282,19 @@ def build_te_id_resolver(isoforms, te_df):
     versioned transcript IDs but the quantification result (from
     LongReadQuant or an external tool) does not, or vice versa.
 
+    If a primary ID still fails to resolve and `alt_ids` is supplied, the same
+    exact-or-stripped lookup is retried against the corresponding alternate
+    ID (features.tsv column 2). This rescues MEX matrices whose column 1 is a
+    placeholder (e.g. 'unknown_00000') and whose real transcript ID lives in
+    column 2, instead of the '<isoform_id> <gene_id> Gene Expression' layout
+    LongReadQuant itself writes.
+
     Parameters
     ----------
-    isoforms : list[str]   isoform IDs from the count matrix
-    te_df    : DataFrame   indexed by transcript_id (TE annotation table)
+    isoforms : list[str]        isoform IDs from the count matrix (column 1)
+    te_df    : DataFrame        indexed by transcript_id (TE annotation table)
+    alt_ids  : list[str] | None per-isoform alternate ID (column 2), same
+                                 length/order as `isoforms`; pass None to skip
 
     Returns
     -------
@@ -275,15 +306,15 @@ def build_te_id_resolver(isoforms, te_df):
         stripped_to_exact.setdefault(_strip_version(tid), tid)
 
     resolved = {}
-    for iso in isoforms:
-        if iso in exact_ids:
-            resolved[iso] = iso
-        else:
-            resolved[iso] = stripped_to_exact.get(_strip_version(iso))
+    for i, iso in enumerate(isoforms):
+        hit = _resolve_one(iso, exact_ids, stripped_to_exact)
+        if hit is None and alt_ids is not None and i < len(alt_ids):
+            hit = _resolve_one(alt_ids[i], exact_ids, stripped_to_exact)
+        resolved[iso] = hit
     return resolved
 
 
-def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
+def build_aggregation_matrices(isoforms, te_df, percent_threshold: float, alt_ids=None):
     """
     Build isoform → TE-level aggregation matrices for efficient sparse
     matrix multiplication.
@@ -295,9 +326,11 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     Also builds isoform → transcript_classification mapping.
 
     Isoform IDs are matched against te_df's transcript_id exactly first,
-    falling back to a version-stripped comparison (see _strip_version) so
-    that a version-number mismatch alone does not cause every isoform to be
-    treated as unmatched.
+    falling back to a version-stripped comparison (see _strip_version), and
+    then, if `alt_ids` is supplied, against the per-isoform alternate ID (see
+    build_te_id_resolver) so that neither a version-number mismatch nor a
+    placeholder primary column alone causes every isoform to be treated as
+    unmatched.
 
     Returns
     -------
@@ -315,7 +348,7 @@ def build_aggregation_matrices(isoforms, te_df, percent_threshold: float):
     te_df = te_df.drop_duplicates(subset="transcript_id", keep="first")
     te_df = te_df.set_index("transcript_id")
 
-    resolved_ids = build_te_id_resolver(isoforms, te_df)
+    resolved_ids = build_te_id_resolver(isoforms, te_df, alt_ids=alt_ids)
 
     print(f"[TE-SC] Building aggregation matrices (threshold={percent_threshold:.2f})...",
           flush=True)
@@ -640,7 +673,7 @@ def run_sc_te_analysis(
     print(f"[TE-SC] {len(te_df)} transcripts in TE table", flush=True)
 
     # 2. Load count matrix
-    count_csr, barcodes, isoforms = load_count_matrix(quant_dir)
+    count_csr, barcodes, isoforms, isoform_alt_ids = load_count_matrix(quant_dir)
 
     # 2b. Sanity check: isoform ID overlap between the count matrix and the TE
     # annotation table. A low match rate usually means -gtf does not match the
@@ -649,11 +682,39 @@ def run_sc_te_analysis(
     # the same exact-or-version-stripped resolver as build_aggregation_matrices
     # (see _strip_version), so a version-number-only mismatch (e.g.
     # 'ENST00000448958' vs 'ENST00000448958.2') no longer reads as 0% here.
-    resolved_ids = build_te_id_resolver(isoforms, te_df.set_index("transcript_id"))
-    matched = sum(1 for te_id in resolved_ids.values() if te_id is not None)
+    # We first try column 1 alone, then retry with the column-2 fallback (see
+    # build_te_id_resolver) so the log makes clear which column actually
+    # carried the usable transcript IDs.
+    te_index = te_df.set_index("transcript_id")
+    resolved_primary = build_te_id_resolver(isoforms, te_index)
+    matched_primary = sum(1 for v in resolved_primary.values() if v is not None)
+    resolved_ids = build_te_id_resolver(isoforms, te_index, alt_ids=isoform_alt_ids)
+    matched = sum(1 for v in resolved_ids.values() if v is not None)
     match_rate = matched / len(isoforms) if isoforms else 0.0
-    print(f"[TE-SC] Isoform ID match rate vs TE table: {match_rate:.1%} "
-          f"({matched}/{len(isoforms)})", flush=True)
+    match_rate_primary = matched_primary / len(isoforms) if isoforms else 0.0
+
+    if matched > matched_primary:
+        print(f"[TE-SC] Isoform ID match rate vs TE table: {match_rate_primary:.1%} "
+              f"({matched_primary}/{len(isoforms)}) using features.tsv column 1 alone; "
+              f"rescued to {match_rate:.1%} ({matched}/{len(isoforms)}) after falling "
+              "back to column 2 for unmatched rows. This usually means column 1 holds "
+              "a placeholder feature ID (e.g. 'unknown_00000') rather than the "
+              "transcript ID.", flush=True)
+    else:
+        print(f"[TE-SC] Isoform ID match rate vs TE table: {match_rate:.1%} "
+              f"({matched}/{len(isoforms)})", flush=True)
+
+    if match_rate < 0.01:
+        raise RuntimeError(
+            f"[TE-SC] Isoform ID match rate vs TE table is only {match_rate:.1%} "
+            f"({matched}/{len(isoforms)}) even after the column-2 fallback. Refusing "
+            "to write per-cell TE output, because it would silently default every "
+            "isoform to 'Gene-alone' and look like a completed-but-empty result. "
+            "Check that -gtf matches the annotation used to produce the "
+            f"--custom_sc_quant / --custom_st_quant count matrix at '{quant_dir}' "
+            "(compare a few IDs from its features.tsv against the transcript_id "
+            f"column of '{te_table_path}')."
+        )
     if match_rate < 0.5:
         print("[TE-SC][WARNING] Less than half of the isoform IDs in the count "
               "matrix were found in the TE annotation table. TE counts will be "
@@ -663,7 +724,7 @@ def run_sc_te_analysis(
               "will not be found unless -gtf includes them).", flush=True)
 
     # 3. Build isoform → TE aggregation matrices
-    agg = build_aggregation_matrices(isoforms, te_df, percent_threshold)
+    agg = build_aggregation_matrices(isoforms, te_df, percent_threshold, alt_ids=isoform_alt_ids)
 
     # 4. Compute spot x TE matrices
     spot_matrices = compute_spot_te_matrices(count_csr, agg, output_loci=output_loci)
