@@ -47,7 +47,7 @@ conda install -c bioconda minimap2
 
 ```bash
 # nailpolish (Linux precompiled binary)
-wget https://github.com/DavidsonGroup/nailpolish/releases/download/nightly_develop/nailpolish
+wget https://github.com/DavidsonGroup/nailpolish/releases/download/nightly/nailpolish
 chmod +x nailpolish
 mkdir -p ~/bin && mv nailpolish ~/bin/
 echo 'export PATH=~/bin:$PATH' >> ~/.bashrc && source ~/.bashrc
